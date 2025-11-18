@@ -151,7 +151,7 @@ namespace Beasts.Perception
 
             try
             {
-                var flaskInventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Flasks);
+                var flaskInventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Flask);
                 if (flaskInventory == null)
                     return counts;
 
@@ -169,7 +169,7 @@ namespace Beasts.Perception
                         counts.TotalFlasks++;
                         
                         // Check if instant
-                        if (item.IsInstantRecovery)
+                        if (item.Components?.FlaskComponent?.InstantRecovery ?? false)
                             counts.InstantFlasks++;
                     }
                     else if (itemClass.Contains("mana") || itemClass.Contains("hybrid"))
