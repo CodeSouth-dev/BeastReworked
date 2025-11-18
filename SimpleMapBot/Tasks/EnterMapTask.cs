@@ -8,6 +8,7 @@ using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
 using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
+using SimpleMapBot.Core;
 using log4net;
 
 namespace SimpleMapBot.Tasks
@@ -28,9 +29,9 @@ namespace SimpleMapBot.Tasks
             if (!cwa.IsHideoutArea && !cwa.IsTown)
                 return false;
 
-            // Find map device portal
+            // Find map device portal OR player-created portal (for re-entry)
             var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
-                .FirstOrDefault(p => p.Distance < 100 && p.Metadata.Contains("MapDevice"));
+                .FirstOrDefault(p => p.Distance < 100 && (p.Metadata.Contains("MapDevice") || MapState.PortalCreated));
 
             if (portal == null)
             {
@@ -38,7 +39,9 @@ namespace SimpleMapBot.Tasks
                 return false;
             }
 
-            Log.InfoFormat("[EnterMapTask] Found portal at distance {0:F1}", portal.Distance);
+            bool isReEntry = MapState.PortalCreated;
+            Log.InfoFormat("[EnterMapTask] Found {0} portal at distance {1:F1}",
+                isReEntry ? "return" : "map device", portal.Distance);
 
             // Move to portal if needed
             if (portal.Distance > 20)
@@ -68,6 +71,22 @@ namespace SimpleMapBot.Tasks
                 if (newArea != null && !newArea.IsHideoutArea && !newArea.IsTown)
                 {
                     Log.InfoFormat("[EnterMapTask] Entered map: {0}", newArea.Name);
+
+                    // Set map state
+                    if (!MapState.MapInProgress)
+                    {
+                        // New map - reset all state
+                        MapState.Reset();
+                        MapState.MapInProgress = true;
+                        Log.Info("[EnterMapTask] Started new map");
+                    }
+                    else
+                    {
+                        // Re-entering map after banking
+                        MapState.PortalCreated = false; // Used the portal
+                        Log.Info("[EnterMapTask] Re-entered map to continue");
+                    }
+
                     return true;
                 }
             }

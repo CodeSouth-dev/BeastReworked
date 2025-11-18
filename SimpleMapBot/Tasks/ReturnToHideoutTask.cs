@@ -6,6 +6,7 @@ using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
 using SimpleMapBot.Configuration;
+using SimpleMapBot.Core;
 using log4net;
 
 namespace SimpleMapBot.Tasks
@@ -25,7 +26,14 @@ namespace SimpleMapBot.Tasks
 
             // Don't run if already in hideout or town
             if (cwa.IsHideoutArea || cwa.IsTown)
+            {
+                // Reset map state if we're in hideout and map is complete
+                if (MapState.MapComplete)
+                {
+                    MapState.Reset();
+                }
                 return false;
+            }
 
             // Check return conditions
             bool shouldReturn = false;
@@ -48,9 +56,31 @@ namespace SimpleMapBot.Tasks
             if (!shouldReturn)
                 return false;
 
-            Log.InfoFormat("[ReturnToHideoutTask] Returning to hideout - {0}", reason);
+            // Check if map is incomplete and we need to create a portal to return
+            bool needsReturnPortal = MapState.MapInProgress && !MapState.MapComplete;
 
-            // Use portal scroll or skill
+            if (needsReturnPortal)
+            {
+                Log.InfoFormat("[ReturnToHideoutTask] Map incomplete ({0}% explored) - creating return portal", MapState.ExplorationPercent);
+
+                // Create portal for return
+                if (await CreateReturnPortal())
+                {
+                    MapState.PortalCreated = true;
+                    Log.Info("[ReturnToHideoutTask] Return portal created - will resume map after banking");
+                }
+                else
+                {
+                    Log.Warn("[ReturnToHideoutTask] Failed to create return portal - map will not be resumed");
+                    MapState.MapComplete = true; // Mark complete so we don't try again
+                }
+            }
+            else
+            {
+                Log.InfoFormat("[ReturnToHideoutTask] Returning to hideout - {0} (map complete)", reason);
+            }
+
+            // Use portal to return
             if (await UsePortal())
             {
                 // Wait for zone transition
@@ -110,6 +140,58 @@ namespace SimpleMapBot.Tasks
             }
 
             Log.Warn("[ReturnToHideoutTask] No portal skill or portal scrolls available!");
+            return false;
+        }
+
+        private async Task<bool> CreateReturnPortal()
+        {
+            // Try to use portal skill to create return portal (but don't enter it)
+            var portalSkill = LokiPoe.Me.AvailableSkills.Find(s => s.Name == "Portal");
+            if (portalSkill != null && portalSkill.CanUse())
+            {
+                var slot = portalSkill.Slot;
+                LokiPoe.InGameState.SkillBarHud.Use(slot, false, false);
+                await Coroutine.Sleep(500);
+
+                // Wait for portal to appear and verify it was created
+                for (int i = 0; i < 30; i++)
+                {
+                    var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
+                        .Find(p => p.Distance < 20);
+                    if (portal != null)
+                    {
+                        Log.Info("[ReturnToHideoutTask] Return portal created successfully");
+                        return true;
+                    }
+                    await Coroutine.Sleep(100);
+                }
+
+                Log.Warn("[ReturnToHideoutTask] Portal skill used but portal didn't appear");
+                return false;
+            }
+
+            // Fallback: Try to use portal scroll
+            var portalScroll = LokiPoe.InstanceInfo.GetPlayerInventoryItemsByName("Portal Scroll").FirstOrDefault();
+            if (portalScroll != null)
+            {
+                int invId = portalScroll.LocalId;
+                LokiPoe.InGameState.InventoryUi.InventoryControl_Main.UseItem(invId);
+                await Coroutine.Sleep(1000);
+
+                // Verify portal was created
+                var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
+                    .Find(p => p.Distance < 20);
+                if (portal != null)
+                {
+                    Log.Info("[ReturnToHideoutTask] Return portal created with scroll");
+                    return true;
+                }
+
+                Log.Warn("[ReturnToHideoutTask] Portal scroll used but portal didn't appear");
+                return false;
+            }
+
+            Log.Warn("[ReturnToHideoutTask] No portal skill or portal scrolls available for return portal!");
             return false;
         }
     }
