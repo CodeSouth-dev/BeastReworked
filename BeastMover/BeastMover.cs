@@ -27,7 +27,7 @@ namespace BeastMover
         public string Name => "BeastMover";
         public string Description => "A player mover for Beast bot with movement skill support.";
         public string Author => "Beast Team";
-        public string Version => "1.4.0";
+        public string Version => "1.5.0";
         #endregion
 
         private PathfindingCommand _cmd;
@@ -36,7 +36,9 @@ namespace BeastMover
         private int _stuckCount = 0;
         private readonly Stopwatch _stuckCheckStopwatch = Stopwatch.StartNew();
         private bool _casted = false;
+        private readonly Stopwatch _skillBlacklistStopwatch = Stopwatch.StartNew();
         private static readonly List<Vector2i> BlacklistedLocations = new List<Vector2i>();
+        private Vector2i _cachePosition = Vector2i.Zero;
 
         #region Implementation of IBase
         public void Initialize()
@@ -156,8 +158,7 @@ namespace BeastMover
             // - Path refresh interval elapsed
             // - Off course from current path
             // - In town (always regenerate)
-            if (_casted ||
-                _cmd == null ||
+            if (_cmd == null ||
                 _cmd.Path == null ||
                 _cmd.EndPoint != position ||
                 LokiPoe.CurrentWorldArea.IsTown ||
@@ -226,28 +227,149 @@ namespace BeastMover
                 BlacklistedLocations.Add(hitPoint);
             }
 
-            // PRIORITIZE movement skills over basic movement (when available and appropriate)
-            var moveSkillSlot = FindReadyMovementSkill();
-            if (moveSkillSlot != -1 &&
-                !cwa.IsTown &&
-                !cwa.IsHideoutArea &&
-                !cwa.IsMapRoom)
+            // Check if we're stuck with movement skill usage
+            if (_casted && _cachePosition == myPosition)
             {
-                // Try to use the movement skill first (regardless of distance for better pathing)
-                var skillUsed = TryUseMovementSkill(moveSkillSlot, point, myPosition);
-                if (skillUsed)
+                // Movement skill didn't actually move us, blacklist and fall back to basic movement
+                BlacklistedLocations.Add(point);
+                _skillBlacklistStopwatch.Restart();
+                _casted = false;
+            }
+            else if (_cachePosition != myPosition)
+            {
+                // We moved successfully, clear the skill blacklist
+                if (_skillBlacklistStopwatch.IsRunning && _skillBlacklistStopwatch.ElapsedMilliseconds > 500)
                 {
-                    _casted = true;
-                    Log.InfoFormat("[BeastMover] Used movement skill at distance {0:F1}m", myPosition.Distance(point));
-                    return true;
+                    _skillBlacklistStopwatch.Reset();
+                }
+            }
+
+            // Cache position for next tick
+            _cachePosition = myPosition;
+
+            // Try to use movement skill only when appropriate
+            var canUseMoveSkill = true;
+            var moveSkillSlot = FindReadyMovementSkill();
+
+            // Don't use movement skills in certain areas
+            if (moveSkillSlot == -1 || cwa.IsTown || cwa.IsHideoutArea || cwa.IsMapRoom)
+            {
+                canUseMoveSkill = false;
+            }
+
+            // Only use movement skill when distance is meaningful and skill isn't blacklisted
+            if (canUseMoveSkill &&
+                myPosition.Distance(point) > BeastMoverSettings.Instance.SingleUseDistance &&
+                (!_skillBlacklistStopwatch.IsRunning || _skillBlacklistStopwatch.ElapsedMilliseconds > 250))
+            {
+                // Find optimal position on path for movement skill
+                var skillMovePoint = FindOptimalSkillPosition(moveSkillSlot, position, myPosition);
+
+                if (skillMovePoint != Vector2i.Zero)
+                {
+                    _casted = TryUseMovementSkill(moveSkillSlot, skillMovePoint, myPosition);
+                    if (_casted)
+                    {
+                        if (BeastMoverSettings.Instance.DebugLogging)
+                        {
+                            Log.InfoFormat("[BeastMover] Used movement skill at distance {0:F1}m", myPosition.Distance(skillMovePoint));
+                        }
+                        return true;
+                    }
                 }
             }
 
             _casted = false;
 
             // Fall back to basic movement
-            Log.InfoFormat("[BeastMover] Using basic movement at distance {0:F1}m", myPosition.Distance(point));
+            if (BeastMoverSettings.Instance.DebugLogging)
+            {
+                Log.InfoFormat("[BeastMover] Using basic movement at distance {0:F1}m", myPosition.Distance(point));
+            }
             return BasicMove(myPosition, point);
+        }
+
+        /// <summary>
+        /// Find the optimal position on the path to use a movement skill
+        /// </summary>
+        private Vector2i FindOptimalSkillPosition(int moveSkillSlot, Vector2i destination, Vector2i myPosition)
+        {
+            if (_cmd == null || _cmd.Path == null || _cmd.Path.Count == 0)
+                return Vector2i.Zero;
+
+            var skillName = LokiPoe.InGameState.SkillBarHud.Slot(moveSkillSlot)?.Name;
+            if (string.IsNullOrEmpty(skillName))
+                return Vector2i.Zero;
+
+            // Get skill range (default ranges for common movement skills)
+            var maxRange = GetSkillMaxRange(skillName);
+            var minRange = GetSkillMinRange(skillName);
+
+            // Find points on path that are within skill range
+            var validPoints = _cmd.Path
+                .Where(pathPoint =>
+                {
+                    var dist = myPosition.Distance(pathPoint);
+                    return dist >= minRange && dist <= maxRange &&
+                           !BlacklistedLocations.Contains(pathPoint);
+                })
+                .OrderByDescending(p => ExilePather.PathDistance(myPosition, p))
+                .ToList();
+
+            // Try points from furthest to closest
+            foreach (var testPoint in validPoints)
+            {
+                // Check if we can raycast to the point
+                if (!ExilePather.Raycast(myPosition, testPoint, out _))
+                    continue;
+
+                // Add slight randomization
+                var finalPoint = testPoint + new Vector2i(LokiPoe.Random.Next(-2, 2), LokiPoe.Random.Next(-2, 2));
+
+                return finalPoint;
+            }
+
+            return Vector2i.Zero;
+        }
+
+        /// <summary>
+        /// Get maximum range for a movement skill
+        /// </summary>
+        private int GetSkillMaxRange(string skillName)
+        {
+            switch (skillName)
+            {
+                case "Dash":
+                case "Frostblink":
+                    return 30;
+                case "Flame Dash":
+                    return 45;
+                case "Whirling Blades":
+                case "Shield Charge":
+                    return 50;
+                case "Leap Slam":
+                    return 55;
+                case "Lightning Warp":
+                    return 60;
+                case "Blink Arrow":
+                    return 65;
+                default:
+                    return 40;
+            }
+        }
+
+        /// <summary>
+        /// Get minimum range for a movement skill
+        /// </summary>
+        private int GetSkillMinRange(string skillName)
+        {
+            switch (skillName)
+            {
+                case "Lightning Warp":
+                    return 20;
+                default:
+                    return 10;
+            }
         }
 
         /// <summary>
