@@ -248,31 +248,12 @@ namespace Beasts.Helpers
                     return new Item[0];
                 }
 
-                var settings = BeastRoutineSettings.Instance.MapDevice;
-
                 var scarabs = inventory.Items
                     .Where(item => item != null &&
                                   item.IsValid &&
                                   item.Class != null &&
                                   item.Class.ToLower().Contains("scarab"))
                     .ToList();
-
-                // If specific scarabs are configured, filter to those
-                if (!string.IsNullOrEmpty(settings.PreferredScarabs))
-                {
-                    var preferredScarabNames = settings.PreferredScarabs
-                        .Split(',')
-                        .Select(s => s.Trim().ToLower())
-                        .Where(s => !string.IsNullOrEmpty(s))
-                        .ToList();
-
-                    if (preferredScarabNames.Any())
-                    {
-                        scarabs = scarabs.Where(s =>
-                            preferredScarabNames.Any(name => s.Name.ToLower().Contains(name)))
-                            .ToList();
-                    }
-                }
 
                 return scarabs.ToArray();
             }
@@ -331,7 +312,7 @@ namespace Beasts.Helpers
         /// Insert scarabs from inventory into the map device
         /// Device UI must be open before calling
         /// </summary>
-        public static async Task<bool> InsertScarabsFromInventory()
+        public static async Task<bool> InsertScarabsFromInventory(int maxScarabs = 3)
         {
             try
             {
@@ -348,13 +329,12 @@ namespace Beasts.Helpers
                     return true; // Not an error - scarabs are optional
                 }
 
-                var settings = BeastRoutineSettings.Instance.MapDevice;
-                int maxScarabs = Math.Min(scarabs.Length, settings.MaxScarabsToUse);
+                int toInsert = Math.Min(scarabs.Length, maxScarabs);
 
-                Log.InfoFormat("[MapDeviceHelper] Inserting {0} scarabs", maxScarabs);
+                Log.InfoFormat("[MapDeviceHelper] Inserting {0} scarabs", toInsert);
 
                 int inserted = 0;
-                for (int i = 0; i < maxScarabs; i++)
+                for (int i = 0; i < toInsert; i++)
                 {
                     if (await MapDeviceService.PlaceItemInDevice(scarabs[i]))
                     {
@@ -363,7 +343,7 @@ namespace Beasts.Helpers
                     }
                 }
 
-                Log.InfoFormat("[MapDeviceHelper] Inserted {0}/{1} scarabs", inserted, maxScarabs);
+                Log.InfoFormat("[MapDeviceHelper] Inserted {0}/{1} scarabs", inserted, toInsert);
                 return inserted > 0 || scarabs.Length == 0;
             }
             catch (Exception ex)
@@ -414,21 +394,14 @@ namespace Beasts.Helpers
                 }
 
                 var settings = BeastRoutineSettings.Instance.MapDevice;
-                var stashControl = LokiPoe.InGameState.StashUi.StashTabControl;
+                var inventoryControl = LokiPoe.InGameState.StashUi.InventoryControl;
 
-                if (stashControl == null)
+                if (inventoryControl?.Inventory?.Items == null)
                 {
                     return false;
                 }
 
-                // Search current tab for maps
-                var currentTab = stashControl.CurrentTab;
-                if (currentTab?.Inventory?.Items == null)
-                {
-                    return false;
-                }
-
-                return currentTab.Inventory.Items.Any(item =>
+                return inventoryControl.Inventory.Items.Any(item =>
                     item != null &&
                     item.IsValid &&
                     item.Class != null &&
@@ -457,16 +430,16 @@ namespace Beasts.Helpers
                 }
 
                 var settings = BeastRoutineSettings.Instance.MapDevice;
-                var stashControl = LokiPoe.InGameState.StashUi.StashTabControl;
+                var inventoryControl = LokiPoe.InGameState.StashUi.InventoryControl;
 
-                if (stashControl?.CurrentTab?.Inventory?.Items == null)
+                if (inventoryControl?.Inventory?.Items == null)
                 {
-                    Log.Error("[MapDeviceHelper] Cannot access stash tab inventory");
+                    Log.Error("[MapDeviceHelper] Cannot access stash inventory");
                     return false;
                 }
 
                 // Find a suitable map in current stash tab
-                var mapToWithdraw = stashControl.CurrentTab.Inventory.Items
+                var mapToWithdraw = inventoryControl.Inventory.Items
                     .Where(item =>
                         item != null &&
                         item.IsValid &&
@@ -486,7 +459,7 @@ namespace Beasts.Helpers
                     mapToWithdraw.Name, mapToWithdraw.MapTier);
 
                 // Use FastMove to withdraw map
-                var result = stashControl.CurrentTab.InventoryControl.FastMove(mapToWithdraw.LocalId);
+                var result = inventoryControl.FastMove(mapToWithdraw.LocalId);
 
                 if (result != FastMoveResult.None)
                 {
