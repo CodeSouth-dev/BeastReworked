@@ -4,7 +4,6 @@ using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Game;
 using DreamPoeBot.Loki.Game.GameData;
 using Beasts.Core;
-using Beasts.Models;
 using log4net;
 
 namespace Beasts.Perception
@@ -22,16 +21,9 @@ namespace Beasts.Perception
         public int ManaPercent { get; private set; }
         public int EnergyShieldPercent { get; private set; }
         public bool InventoryFull { get; private set; }
-        public int AvailableFlasks { get; private set; }
         public int PortalScrollCount { get; private set; }
         public int InventorySpaceUsed { get; private set; }
         public int InventorySpaceTotal { get; private set; }
-
-        // Detailed flask tracking
-        public FlaskCounts FlaskCounts { get; private set; }
-        public bool HasLifeFlasks => FlaskCounts?.LifeFlasks > 0;
-        public bool HasManaFlasks => FlaskCounts?.ManaFlasks > 0;
-        public bool HasUtilityFlasks => FlaskCounts?.UtilityFlasks > 0;
 
         public void Update()
         {
@@ -48,9 +40,6 @@ namespace Beasts.Perception
             // Inventory
             CalculateInventoryFullness();
             InventoryFull = CheckInventoryFull();
-
-            // Flasks
-            AvailableFlasks = CountAvailableFlasks();
 
             // Portal scrolls
             PortalScrollCount = CheckPortalScrollCount();
@@ -113,83 +102,6 @@ namespace Beasts.Perception
 
             Log.DebugFormat("[PlayerPerception] Free inventory slots: {0}, Full: {1}", freeSlots, isFull);
             return isFull;
-        }
-
-        /// <summary>
-        /// Counts how many flasks are available (not on cooldown)
-        /// </summary>
-        private int CountAvailableFlasks()
-        {
-            try
-            {
-                // Count flasks directly from inventory
-                FlaskCounts = GetFlaskCounts();
-
-                Log.DebugFormat("[PlayerPerception] Flasks - Total: {0}, Life: {1}, Mana: {2}, Utility: {3}, Instant: {4}",
-                    FlaskCounts.TotalFlasks,
-                    FlaskCounts.LifeFlasks,
-                    FlaskCounts.ManaFlasks,
-                    FlaskCounts.UtilityFlasks,
-                    FlaskCounts.InstantFlasks);
-
-                return (int)FlaskCounts.TotalFlasks;
-            }
-            catch (System.Exception ex)
-            {
-                Log.Error("[PlayerPerception] Error counting flasks", ex);
-                FlaskCounts = new FlaskCounts();
-                return 0;
-            }
-        }
-
-        /// <summary>
-        /// Get detailed flask counts from inventory
-        /// </summary>
-        private FlaskCounts GetFlaskCounts()
-        {
-            var counts = new FlaskCounts();
-
-            try
-            {
-                var flaskInventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Flasks);
-                if (flaskInventory == null)
-                    return counts;
-
-                foreach (var item in flaskInventory.Items)
-                {
-                    if (item == null || !item.IsValid)
-                        continue;
-
-                    var itemClass = item.Class?.ToLower() ?? "";
-
-                    // Count by type
-                    if (itemClass.Contains("life"))
-                    {
-                        counts.LifeFlasks++;
-                        counts.TotalFlasks++;
-                        
-                        // Check if instant
-                        if (item.IsInstantRecovery)
-                            counts.InstantFlasks++;
-                    }
-                    else if (itemClass.Contains("mana") || itemClass.Contains("hybrid"))
-                    {
-                        counts.ManaFlasks++;
-                        counts.TotalFlasks++;
-                    }
-                    else if (itemClass.Contains("flask"))
-                    {
-                        counts.UtilityFlasks++;
-                        counts.TotalFlasks++;
-                    }
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Log.Error("[PlayerPerception] Error in GetFlaskCounts", ex);
-            }
-
-            return counts;
         }
 
         /// <summary>
