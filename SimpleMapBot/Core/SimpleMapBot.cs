@@ -22,6 +22,7 @@ namespace SimpleMapBot.Core
         private static readonly ILog Log = Logger.GetLoggerInstanceForType();
         private TaskManager _taskManager;
         private readonly Stopwatch _runStopwatch = new Stopwatch();
+        private readonly Stopwatch _statsLogTimer = new Stopwatch();
 
         #region IAuthored Implementation
         public string Name => "SimpleMapBot";
@@ -91,6 +92,7 @@ namespace SimpleMapBot.Core
         {
             Log.InfoFormat("[{0}] Starting bot", Name);
             _runStopwatch.Restart();
+            _statsLogTimer.Restart();
 
             // Initialize poe.ninja service if enabled
             var settings = SimpleMapBotSettings.Instance;
@@ -100,19 +102,43 @@ namespace SimpleMapBot.Core
                 Log.InfoFormat("[SimpleMapBot] Initializing poe.ninja service for league: {0}", league);
                 PoeNinjaService.Initialize(league);
             }
+
+            // Log initial statistics
+            Log.Info($"[Statistics] Session started. Current stats: {Statistics.Instance.GetSummary()}");
         }
 
         public void Stop()
         {
             Log.InfoFormat("[{0}] Stopping bot after {1}", Name, _runStopwatch.Elapsed);
             _runStopwatch.Stop();
+            _statsLogTimer.Stop();
+
+            // Log final statistics
+            Log.Info($"[Statistics] Session ended. Final stats: {Statistics.Instance.GetSummary()}");
         }
         #endregion
 
         #region ITickEvents Implementation
         public void Tick()
         {
-            // Tick logic if needed
+            // Update statistics
+            Statistics.Instance.Tick();
+
+            // Track deaths
+            if (LokiPoe.IsInGame && LokiPoe.Me.IsDead)
+            {
+                Statistics.Instance.OnDeath();
+            }
+
+            // Log statistics every 5 minutes
+            if (!_statsLogTimer.IsRunning)
+                _statsLogTimer.Start();
+
+            if (_statsLogTimer.Elapsed.TotalMinutes >= 5)
+            {
+                Log.Info($"[Statistics] {Statistics.Instance.GetSummary()}");
+                _statsLogTimer.Restart();
+            }
         }
         #endregion
 

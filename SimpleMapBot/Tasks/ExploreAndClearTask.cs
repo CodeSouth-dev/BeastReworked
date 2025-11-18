@@ -94,6 +94,7 @@ namespace SimpleMapBot.Tasks
             {
                 Log.InfoFormat("[ExploreAndClearTask] Time limit reached ({0}s)", settings.MaxMapTimeSeconds);
                 MapState.MapComplete = true;
+                Statistics.Instance.OnMapCompleted();
                 return true;
             }
 
@@ -104,6 +105,7 @@ namespace SimpleMapBot.Tasks
                 Log.InfoFormat("[ExploreAndClearTask] Monsters remaining threshold reached ({0}/{1})",
                     monstersRemaining, settings.MonstersRemainingThreshold);
                 MapState.MapComplete = true;
+                Statistics.Instance.OnMapCompleted();
                 return true;
             }
 
@@ -156,6 +158,7 @@ namespace SimpleMapBot.Tasks
                 {
                     Log.Info("[ExploreAndClearTask] No more areas to explore - map complete");
                     MapState.MapComplete = true;
+                    Statistics.Instance.OnMapCompleted();
                     return true;
                 }
             }
@@ -191,6 +194,14 @@ namespace SimpleMapBot.Tasks
             // Pick up
             if (await Coroutines.InteractWith(loot))
             {
+                // Track statistics
+                Statistics.Instance.OnItemLooted();
+
+                if (loot.Item.Class == "Currency")
+                    Statistics.Instance.OnCurrencyLooted();
+                else if (loot.Item.Class == "Maps")
+                    Statistics.Instance.OnMapLooted();
+
                 await Coroutine.Sleep(100);
             }
 
