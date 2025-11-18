@@ -6,7 +6,9 @@ using DreamPoeBot.Loki.Bot;
 using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
+using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
+using SimpleMapBot.Utilities;
 using log4net;
 
 namespace SimpleMapBot.Tasks
@@ -45,17 +47,24 @@ namespace SimpleMapBot.Tasks
 
             // Open map device
             if (!await OpenMapDevice())
+            {
+                ErrorManager.ReportError();
                 return false;
+            }
 
             // Place map
-            if (await PlaceMap(map))
+            if (!await PlaceMap(map))
             {
-                // Activate device
-                if (await ActivateDevice())
-                {
-                    _mapPlaced = true;
-                    return true;
-                }
+                ErrorManager.ReportError();
+                return false;
+            }
+
+            // Activate device
+            if (await ActivateDevice())
+            {
+                _mapPlaced = true;
+                ErrorManager.Reset(); // Reset on full success
+                return true;
             }
 
             return false;
@@ -155,8 +164,15 @@ namespace SimpleMapBot.Tasks
             if (!mapDeviceUi.IsOpened)
             {
                 Log.Warn("[OpenMapDeviceTask] Map device UI not open");
+                ErrorManager.ReportError();
                 return false;
             }
+
+            // Find any existing portal near map device (before activation)
+            var existingPortal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
+                .FirstOrDefault(p => p.Distance < 50 && p.Metadata.Contains("MapDevice"));
+
+            bool hadOldPortal = existingPortal != null && existingPortal.IsTargetable;
 
             // Click the activate button
             Log.Info("[OpenMapDeviceTask] Activating map device");
@@ -164,6 +180,7 @@ namespace SimpleMapBot.Tasks
             if (!mapDeviceUi.Activate())
             {
                 Log.Warn("[OpenMapDeviceTask] Failed to activate map device");
+                ErrorManager.ReportError();
                 return false;
             }
 
@@ -173,19 +190,53 @@ namespace SimpleMapBot.Tasks
             LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
             await Coroutine.Sleep(200);
 
-            // Wait for portal to appear
-            for (int i = 0; i < 50; i++)
+            // If there was an old portal, wait for it to despawn first
+            if (hadOldPortal)
             {
-                if (IsMapDeviceActivated())
+                Log.Debug("[OpenMapDeviceTask] Waiting for old portals to despawn");
+
+                if (!await Wait.For(() =>
+                    {
+                        var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
+                            .FirstOrDefault(p => p.Distance < 50);
+                        return portal == null || !portal.IsTargetable;
+                    },
+                    "old map portals despawning", 200, 10000))
                 {
-                    Log.Info("[OpenMapDeviceTask] Map device activated successfully");
-                    return true;
+                    Log.Warn("[OpenMapDeviceTask] Timeout waiting for old portals to despawn");
+                    ErrorManager.ReportError();
+                    return false;
                 }
-                await Coroutine.Sleep(100);
             }
 
-            Log.Warn("[OpenMapDeviceTask] Portal did not appear after activation");
-            return false;
+            // Wait for new map portal to spawn
+            Log.Debug("[OpenMapDeviceTask] Waiting for new map portal to spawn");
+
+            if (!await Wait.For(() =>
+                {
+                    var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
+                        .FirstOrDefault(p => p.Distance < 50);
+
+                    if (portal == null)
+                        return false;
+
+                    if (!portal.IsTargetable)
+                        return false;
+
+                    // Verify it leads to a map
+                    var leadsToArea = portal.LeadsTo;
+                    return leadsToArea != null && leadsToArea.IsMap;
+                },
+                "new map portal spawning", 500, 15000))
+            {
+                Log.Warn("[OpenMapDeviceTask] Portal did not appear after activation");
+                ErrorManager.ReportError();
+                return false;
+            }
+
+            Log.Info("[OpenMapDeviceTask] Map device activated successfully");
+            ErrorManager.Reset(); // Reset error counter on success
+            return true;
         }
     }
 }

@@ -54,6 +54,10 @@ namespace SimpleMapBot.Configuration
         [DefaultValue(80)]
         [Description("Target percentage of zone to explore before leaving")]
         public int TargetExplorationPercent { get; set; } = 80;
+
+        [DefaultValue(20)]
+        [Description("Map is considered complete when monsters remaining drops to this value or below")]
+        public int MonstersRemainingThreshold { get; set; } = 20;
         #endregion
 
         #region Combat Settings

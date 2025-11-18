@@ -97,6 +97,16 @@ namespace SimpleMapBot.Tasks
                 return true;
             }
 
+            // Monsters remaining threshold reached - mark complete
+            int monstersRemaining = LokiPoe.InstanceInfo.MonstersRemaining;
+            if (monstersRemaining >= 0 && monstersRemaining <= settings.MonstersRemainingThreshold)
+            {
+                Log.InfoFormat("[ExploreAndClearTask] Monsters remaining threshold reached ({0}/{1})",
+                    monstersRemaining, settings.MonstersRemainingThreshold);
+                MapState.MapComplete = true;
+                return true;
+            }
+
             // Inventory full - leave but DON'T mark complete (will return)
             var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
             if (inventory != null && settings.ReturnWhenInventoryFull)

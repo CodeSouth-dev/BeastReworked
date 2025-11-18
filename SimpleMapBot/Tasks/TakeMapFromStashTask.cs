@@ -8,6 +8,7 @@ using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
 using DreamPoeBot.Loki.Game.GameData;
 using SimpleMapBot.Configuration;
+using SimpleMapBot.Utilities;
 using log4net;
 
 namespace SimpleMapBot.Tasks
@@ -41,7 +42,10 @@ namespace SimpleMapBot.Tasks
 
             // Open stash
             if (!await OpenStash())
+            {
+                ErrorManager.ReportError();
                 return false;
+            }
 
             // Find and take map
             if (await TakeMapFromStash())
@@ -52,10 +56,12 @@ namespace SimpleMapBot.Tasks
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                 await Coroutine.Sleep(200);
 
+                ErrorManager.Reset(); // Reset on success
                 return true;
             }
 
             Log.Warn("[TakeMapFromStashTask] No suitable maps found in stash!");
+            ErrorManager.ReportError();
             return false;
         }
 
