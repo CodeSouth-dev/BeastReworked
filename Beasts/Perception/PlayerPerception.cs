@@ -103,3 +103,52 @@ namespace Beasts.Perception
             Log.DebugFormat("[PlayerPerception] Free inventory slots: {0}, Full: {1}", freeSlots, isFull);
             return isFull;
         }
+
+        /// <summary>
+        /// Checks portal scroll count in inventory
+        /// </summary>
+        private int CheckPortalScrollCount()
+        {
+            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+            if (inventory == null)
+                return 0;
+
+            // Count portal scrolls
+            var scrollCount = inventory.Items
+                .Where(item => item != null &&
+                              item.IsValid &&
+                              item.Metadata != null &&
+                              (item.Metadata.ToLower().Contains("portalscroll") ||
+                               item.Name.ToLower().Contains("portal scroll")))
+                .Sum(item => item.StackCount);
+
+            Log.DebugFormat("[PlayerPerception] Portal Scrolls: {0}", scrollCount);
+            return (int)scrollCount;
+        }
+
+        /// <summary>
+        /// Calculate inventory fullness percentage
+        /// </summary>
+        private void CalculateInventoryFullness()
+        {
+            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+            if (inventory == null)
+            {
+                InventorySpaceUsed = 0;
+                InventorySpaceTotal = 0;
+                return;
+            }
+
+            // Count used slots
+            var items = inventory.Items.Where(i => i != null && i.IsValid).ToList();
+            InventorySpaceUsed = (int)items.Count;
+
+            // Total slots (typical PoE inventory is 60 slots: 12 columns x 5 rows)
+            InventorySpaceTotal = 60; // Could make this dynamic if inventory size changes
+
+            Log.DebugFormat("[PlayerPerception] Inventory: {0}/{1} ({2:F1}% full)",
+                InventorySpaceUsed, InventorySpaceTotal,
+                InventorySpaceTotal > 0 ? (float)InventorySpaceUsed / InventorySpaceTotal * 100f : 0f);
+        }
+    }
+}
