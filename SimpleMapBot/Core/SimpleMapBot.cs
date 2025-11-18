@@ -8,6 +8,7 @@ using DreamPoeBot.Loki.Bot;
 using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Game;
 using SimpleMapBot.Configuration;
+using SimpleMapBot.Services;
 using SimpleMapBot.Tasks;
 using log4net;
 
@@ -90,6 +91,15 @@ namespace SimpleMapBot.Core
         {
             Log.InfoFormat("[{0}] Starting bot", Name);
             _runStopwatch.Restart();
+
+            // Initialize poe.ninja service if enabled
+            var settings = SimpleMapBotSettings.Instance;
+            if (settings.UsePoeNinjaFiltering)
+            {
+                var league = string.IsNullOrEmpty(settings.PoeNinjaLeague) ? "Standard" : settings.PoeNinjaLeague;
+                Log.InfoFormat("[SimpleMapBot] Initializing poe.ninja service for league: {0}", league);
+                PoeNinjaService.Initialize(league);
+            }
         }
 
         public void Stop()

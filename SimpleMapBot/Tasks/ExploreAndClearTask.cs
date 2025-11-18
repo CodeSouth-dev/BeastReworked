@@ -12,6 +12,7 @@ using DreamPoeBot.Loki.Game;
 using DreamPoeBot.Loki.Game.GameData;
 using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
+using SimpleMapBot.Services;
 using log4net;
 
 namespace SimpleMapBot.Tasks
@@ -183,22 +184,56 @@ namespace SimpleMapBot.Tasks
             if (item == null)
                 return false;
 
-            // Currency
+            var itemName = item.Name ?? item.FullName ?? "Unknown";
+
+            // Always pick up currency (unless disabled)
             if (settings.PickupCurrency && item.Class == "Currency")
                 return true;
 
-            // Divination cards
+            // Always pick up divination cards (unless disabled)
             if (settings.PickupDivinationCards && item.Class == "Divination Card")
+            {
+                // If using poe.ninja, check value
+                if (settings.UsePoeNinjaFiltering)
+                {
+                    var value = PoeNinjaService.GetItemValue(itemName, item.Class);
+                    if (value.HasValue && value.Value >= settings.MinItemValueChaos)
+                    {
+                        if (settings.DebugLogging)
+                        {
+                            Log.InfoFormat("[ExploreAndClearTask] Valuable card: {0} ({1}c)", itemName, value.Value);
+                        }
+                        return true;
+                    }
+                    // Skip low-value cards if poe.ninja is enabled
+                    return false;
+                }
+                // If not using poe.ninja, pick up all cards
                 return true;
+            }
 
-            // Maps
+            // Always pick up maps (unless disabled)
             if (settings.PickupMaps && item.Class == "Maps")
                 return true;
+
+            // Check poe.ninja for other valuable items
+            if (settings.UsePoeNinjaFiltering)
+            {
+                var value = PoeNinjaService.GetItemValue(itemName, item.Class);
+                if (value.HasValue && value.Value >= settings.MinItemValueChaos)
+                {
+                    if (settings.DebugLogging)
+                    {
+                        Log.InfoFormat("[ExploreAndClearTask] Valuable item: {0} ({1}c)", itemName, value.Value);
+                    }
+                    return true;
+                }
+            }
 
             // If using game filter, check if highlighted
             if (settings.OnlyPickupHighlightedItems)
             {
-                // Game marks valuable items - check alert level or similar
+                // Game marks valuable items - check if allocated
                 return item.IsAllocatedToMe;
             }
 

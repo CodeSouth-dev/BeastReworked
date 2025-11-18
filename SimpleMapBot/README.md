@@ -7,9 +7,10 @@ A straightforward map clearing bot for Path of Exile that focuses on the essenti
 - **Automated Map Running**: Takes maps from stash, opens map device, and enters
 - **Zone Exploration**: Explores maps using intelligent pathfinding
 - **Combat**: Kills monsters using BeastCombatRoutine (set zoom mode OFF)
-- **Smart Looting**: Picks up currency, cards, maps, and valuable items
+- **Smart Looting**: Picks up currency, cards, maps, and valuable items with poe.ninja price checking
 - **Auto Return**: Returns to hideout when inventory full, low health, or map complete
 - **Movement Skills**: Uses movement skills efficiently via SimpleMover (v1.5.0)
+- **Poe.ninja Integration**: Filters loot by chaos value using live poe.ninja prices
 
 ## Components
 
@@ -50,6 +51,9 @@ Settings are stored in JSON at: `Settings/[BotName]/SimpleMapBot.json`
 - `EnableLooting`: Enable item pickup (default: true)
 - `MaxLootRange`: Max distance to pick up loot (default: 50)
 - `PickupCurrency` / `PickupDivinationCards` / `PickupMaps`: What to pick up
+- `UsePoeNinjaFiltering`: Enable poe.ninja price checking (default: true)
+- `PoeNinjaLeague`: League for price data (default: "Standard")
+- `MinItemValueChaos`: Minimum chaos value to pick up (default: 5c)
 
 **Return Conditions:**
 - `ReturnWhenInventoryFull`: Return when inventory full (default: true)
@@ -86,16 +90,15 @@ SimpleMapBot is a simplified version focused on core mapping:
 **What SimpleMapBot Does:**
 - ✓ Runs maps continuously
 - ✓ Kills all monsters
-- ✓ Loots valuable items
+- ✓ Loots valuable items with poe.ninja price checking
 - ✓ Returns to hideout when done
 
 **What SimpleMapBot Doesn't Do:**
 - ✗ Beast capture mechanics
 - ✗ Scarab/fragment management
 - ✗ Selective combat (fights everything)
-- ✗ Complex item filtering (uses basic categories)
-- ✗ Poe.ninja integration
 - ✗ Cache detection
+- ✗ Advanced perception modules
 
 SimpleMapBot is perfect for learning bot development or running basic map farms. Once you master this, BeastRoutine adds advanced mechanics on top of the same foundation.
 
