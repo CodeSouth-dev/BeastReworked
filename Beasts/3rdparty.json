@@ -22,6 +22,7 @@
     "Services/StuckDetector.cs",
     "Services/CombatStateService.cs",
     "Services/PoeNinjaService.cs",
+    "Helpers/MapDeviceHelper.cs",
     "Helpers/MetadataPathMatcher.cs",
     "Helpers/PhaseConditionHelpers.cs",
     "Core/GameConstants.cs",
