@@ -94,6 +94,14 @@ namespace SimpleMapBot.Configuration
         [DefaultValue(5)]
         [Description("Minimum chaos value for items to pick up (if using value filtering)")]
         public double MinItemValueChaos { get; set; } = 5.0;
+
+        [DefaultValue(true)]
+        [Description("Use poe.ninja for price checking and loot filtering")]
+        public bool UsePoeNinjaFiltering { get; set; } = true;
+
+        [DefaultValue("Standard")]
+        [Description("League name for poe.ninja price data (e.g. 'Standard', 'Settlers', 'Hardcore')")]
+        public string PoeNinjaLeague { get; set; } = "Standard";
         #endregion
 
         #region Return Conditions
