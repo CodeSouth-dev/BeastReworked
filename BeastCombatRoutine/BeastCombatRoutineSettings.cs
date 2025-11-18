@@ -32,6 +32,12 @@ namespace BeastCombatRoutine
         private int _buffSlot2;
         private int _buffSlot3;
 
+        // Aura Skill Slots (always-on skills like Righteous Fire, Heralds, Auras)
+        private int _auraSlot1;
+        private int _auraSlot2;
+        private int _auraSlot3;
+        private bool _enableAuraActivation;
+
         // Combat Settings
         private int _combatRange;
         private int _maxMeleeRange;
@@ -173,6 +179,75 @@ namespace BeastCombatRoutine
                 {
                     _buffSlot3 = value;
                     NotifyPropertyChanged(() => BuffSlot3);
+                }
+            }
+        }
+
+        /// <summary>
+        /// First aura skill slot (always-on skills like Righteous Fire, Heralds, Auras)
+        /// These are activated once when entering combat areas and stay on
+        /// </summary>
+        [DefaultValue(-1)]
+        public int AuraSlot1
+        {
+            get { return _auraSlot1; }
+            set
+            {
+                if (_auraSlot1 != value)
+                {
+                    _auraSlot1 = value;
+                    NotifyPropertyChanged(() => AuraSlot1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Second aura skill slot
+        /// </summary>
+        [DefaultValue(-1)]
+        public int AuraSlot2
+        {
+            get { return _auraSlot2; }
+            set
+            {
+                if (_auraSlot2 != value)
+                {
+                    _auraSlot2 = value;
+                    NotifyPropertyChanged(() => AuraSlot2);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Third aura skill slot
+        /// </summary>
+        [DefaultValue(-1)]
+        public int AuraSlot3
+        {
+            get { return _auraSlot3; }
+            set
+            {
+                if (_auraSlot3 != value)
+                {
+                    _auraSlot3 = value;
+                    NotifyPropertyChanged(() => AuraSlot3);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Enable automatic aura activation in combat areas (Righteous Fire, Heralds, etc.)
+        /// </summary>
+        [DefaultValue(true)]
+        public bool EnableAuraActivation
+        {
+            get { return _enableAuraActivation; }
+            set
+            {
+                if (_enableAuraActivation != value)
+                {
+                    _enableAuraActivation = value;
+                    NotifyPropertyChanged(() => EnableAuraActivation);
                 }
             }
         }
