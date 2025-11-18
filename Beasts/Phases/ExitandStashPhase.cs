@@ -14,6 +14,7 @@ using Beasts.Core;
 using Beasts.Configuration;
 using Beasts.Services;
 using log4net;
+using Logger = DreamPoeBot.Loki.Common.Logger;
 
 namespace Beasts.Phases
 {
@@ -37,7 +38,7 @@ namespace Beasts.Phases
     /// </summary>
     public class ExitAndStashPhase : IPhase
     {
-        private static readonly ILog Log = Beasts.Core.Logger.GetLoggerInstanceForType();
+        private static readonly ILog Log = Logger.GetLoggerInstanceForType();
 
         public string Name => "ExitAndStash";
 

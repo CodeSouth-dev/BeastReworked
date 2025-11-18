@@ -10,6 +10,7 @@ using DreamPoeBot.Loki.Game;
 using Beasts.Configuration;
 using Beasts.Perception;
 using log4net;
+using Logger = DreamPoeBot.Loki.Common.Logger;
 
 namespace Beasts.Core
 {
@@ -22,7 +23,7 @@ namespace Beasts.Core
     /// </summary>
     public class BeastRoutine : IBot
     {
-        private static readonly ILog Log = LogManager.GetLogger(typeof(BeastRoutine));
+        private static readonly ILog Log = Logger.GetLoggerInstanceForType();
 
         // Core components
         private readonly PerceptionManager _perception;

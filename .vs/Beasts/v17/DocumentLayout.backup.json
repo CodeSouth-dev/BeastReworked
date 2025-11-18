@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\Elijah\\Desktop\\ClaudeBeasts2.0\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{0DCD9093-9649-499E-B58C-CC2CAD808C78}|Beasts\\Beasts.csproj|c:\\users\\elijah\\desktop\\claudebeasts2.0\\beasts\\phases\\preparationphase.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{0DCD9093-9649-499E-B58C-CC2CAD808C78}|Beasts\\Beasts.csproj|solutionrelative:beasts\\phases\\preparationphase.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "PreparationPhase.cs",
+              "DocumentMoniker": "C:\\Users\\Elijah\\Desktop\\ClaudeBeasts2.0\\Beasts\\Phases\\PreparationPhase.cs",
+              "RelativeDocumentMoniker": "Beasts\\Phases\\PreparationPhase.cs",
+              "ToolTip": "C:\\Users\\Elijah\\Desktop\\ClaudeBeasts2.0\\Beasts\\Phases\\PreparationPhase.cs",
+              "RelativeToolTip": "Beasts\\Phases\\PreparationPhase.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAC8AAAAUAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-18T06:52:18.476Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -14,6 +14,7 @@ using Beasts.Core;
 using Beasts.Configuration;
 using Beasts.Services;
 using log4net;
+using Logger = DreamPoeBot.Loki.Common.Logger;
 
 namespace Beasts.Phases
 {
@@ -32,7 +33,7 @@ namespace Beasts.Phases
     /// </summary>
     public class OpenMapPhase : IPhase
     {
-        private static readonly ILog Log = LogManager.GetLogger(typeof(OpenMapPhase));
+        private static readonly ILog Log = Logger.GetLoggerInstanceForType();
 
         public string Name => "OpenMap";
 
@@ -43,8 +44,6 @@ namespace Beasts.Phases
 
         public bool CanExecute(GameContext context)
         {
-            Log.Info($"[OpenMap] CanExecute check - IsInHideout: {context.Player.IsInHideout}, MapDeviceActive: {context.MapDevice.IsActive}");
-
             // Must be in hideout
             if (!context.Player.IsInHideout)
                 return false;
@@ -52,7 +51,6 @@ namespace Beasts.Phases
             // Don't execute if map device is already active
             if (context.MapDevice.IsActive)
             {
-                Log.Debug("[OpenMap] Map device is active, skipping");
                 return false;
             }
 
@@ -62,19 +60,15 @@ namespace Beasts.Phases
             
             if (!hasPortalScrolls)
             {
-                Log.Info("[OpenMap] Missing portal scrolls - PreparationPhase should restock");
                 return false;
             }
 
             // Have portal scrolls - proceed to check device and stash for maps/scarabs
-            Log.Info("[OpenMap] Have portal scrolls - ready to check device and stash for maps/scarabs");
             return true;
         }
 
         public async Task<PhaseResult> Execute(GameContext context)
         {
-            Log.Info($"[OpenMap] ===== EXECUTING Phase - Step: {_currentStep}, Attempt: {_stepAttempts} =====");
-
             switch (_currentStep)
             {
                 case MapOpeningStep.ValidateRequirements:
@@ -116,7 +110,6 @@ namespace Beasts.Phases
             if (LokiPoe.InGameState.StashUi.IsOpened ||
                 LokiPoe.InGameState.MapDeviceUi.IsOpened)
             {
-                Log.Info("[OpenMap] Closing open UIs before validation");
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                 await Coroutine.Sleep(500);
 
@@ -130,7 +123,6 @@ namespace Beasts.Phases
                         Log.Error("[OpenMap] Cannot close UIs after 10 attempts - please close game UIs manually");
                         return PhaseResult.Failed("Cannot close blocking UIs - restart bot or close game UIs manually");
                     }
-                    Log.DebugFormat("[OpenMap] UIs still open after close (attempt {0}/10), waiting...", _stepAttempts);
                     return PhaseResult.InProgress("Waiting for UIs to close");
                 }
                 else
@@ -139,9 +131,6 @@ namespace Beasts.Phases
                     _stepAttempts = 0;
                 }
             }
-
-            Log.Info("[OpenMap] Validation complete - proceeding to check map device first");
-
             // Always go to device first to check what's already loaded
             // Device check happens in InsertMap/InsertScarabs steps
             _currentStep = MapOpeningStep.MoveToDevice;
@@ -158,7 +147,6 @@ namespace Beasts.Phases
 
             if (mapDeviceOpen || masterDeviceOpen)
             {
-                Log.Info("[OpenMap] Device UI unexpectedly open, closing before navigation");
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                 await Coroutine.Sleep(300);
                 // Don't transition yet - let the bot actually move to device first
@@ -184,14 +172,13 @@ namespace Beasts.Phases
 
             if (distance <= 20f) // Within interaction range
             {
-                Log.Info("[OpenMap] Reached map device");
                 // Skip receptacle selection - go straight to inserting map
                 _currentStep = MapOpeningStep.InsertMap;
                 _stepAttempts = 0;
                 return PhaseResult.InProgress("At map device, ready to insert items");
             }
-
-            Log.DebugFormat("[OpenMap] Moving to map device (Distance: {0:F1})", distance);
+            
+            // Use PlayerMoverManager (will use BeastMover when configured)
             PlayerMoverManager.Current.MoveTowards(mapDevice.Position);
 
             await Coroutine.Sleep(100);
@@ -200,22 +187,24 @@ namespace Beasts.Phases
 
         private async Task<PhaseResult> InsertMap(GameContext context)
         {
-            Log.Info("[OpenMap] Checking map device - need to open UI first");
-
             // MUST open device UI first to check what's inside
             bool mapDeviceOpen = LokiPoe.InGameState.MapDeviceUi.IsOpened;
             bool masterDeviceOpen = LokiPoe.InGameState.MasterDeviceUi.IsOpened;
 
             if (!mapDeviceOpen && !masterDeviceOpen)
             {
-                Log.Info("[OpenMap] Opening map device UI to check contents");
+                Log.InfoFormat("[OpenMap] Map device UI not open, attempting to open...");
                 // Open map device UI using MapDeviceService
-                if (!await MapDeviceService.OpenMapDevice())
+                var openResult = await MapDeviceService.OpenMapDevice();
+                
+                Log.InfoFormat("[OpenMap] MapDeviceService.OpenMapDevice() returned: {0}", openResult);
+                
+                if (!openResult)
                 {
                     _stepAttempts++;
                     if (_stepAttempts > 5)
                     {
-                        Log.Error("[OpenMap] Failed to open map device after 5 attempts");
+                        Log.ErrorFormat("[OpenMap] Failed to open map device after 5 attempts");
                         return PhaseResult.Failed("Failed to open map device");
                     }
 
@@ -224,43 +213,45 @@ namespace Beasts.Phases
                     return PhaseResult.InProgress("Retrying map device opening...");
                 }
                 
+                Log.InfoFormat("[OpenMap] Map device opened successfully, waiting for UI to fully load");
                 await Coroutine.Sleep(300); // Wait for UI to fully load
+                _stepAttempts = 0; // Reset on success
                 return PhaseResult.InProgress("Waiting for device UI to load...");
             }
+            
+            Log.InfoFormat("[OpenMap] Map device UI already open (MapDevice: {0}, MasterDevice: {1})", 
+                mapDeviceOpen, masterDeviceOpen);
+            
+            // Reset attempts since we successfully have UI open
+            _stepAttempts = 0;
             
             // NOW check if map device already has a map loaded
             bool hasMapInDevice = CheckMapDeviceForMaps();
             
             if (hasMapInDevice)
             {
-                Log.Info("[OpenMap] Map already loaded in map device - skipping to scarabs");
                 _currentStep = MapOpeningStep.InsertScarabs;
                 _stepAttempts = 0;
                 return PhaseResult.InProgress("Map already in device");
             }
-
-            Log.Info("[OpenMap] No map in device - checking inventory for map");
-
+            
             var mapItem = FindMapInInventory();
             
             if (mapItem == null)
             {
                 // NO MAP IN INVENTORY - Need to withdraw from stash
-                // CRITICAL: Close map device UI before transitioning to withdrawal
-                if (LokiPoe.InGameState.MapDeviceUi.IsOpened || LokiPoe.InGameState.MasterDeviceUi.IsOpened)
-                {
-                    LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
-                    await Coroutine.Sleep(500);
-                }
-                
+                Log.InfoFormat("[OpenMap] No map in inventory - transitioning to WithdrawMap step");
+                // Transition to WithdrawMap regardless - it will handle UI closing
                 _currentStep = MapOpeningStep.WithdrawMap;
                 _stepAttempts = 0;
                 return PhaseResult.InProgress("No map in inventory, withdrawing from stash");
             }
 
-            var tier = ExtractMapTier(mapItem);
-            Log.InfoFormat("[OpenMap] Inserting map from inventory: {0} (Tier: {1})", mapItem.Name, tier);
+            // Map found in inventory!
+            Log.InfoFormat("[OpenMap] Found map in inventory: {0} (tier {1})", 
+                mapItem.Name, ExtractMapTier(mapItem));
 
+            var tier = ExtractMapTier(mapItem);
             // Verify device UI is still open (either MapDeviceUi or MasterDeviceUi)
             mapDeviceOpen = LokiPoe.InGameState.MapDeviceUi.IsOpened;
             masterDeviceOpen = LokiPoe.InGameState.MasterDeviceUi.IsOpened;
@@ -277,7 +268,9 @@ namespace Beasts.Phases
 
             if (deviceHasItems)
             {
-                Log.Info("[OpenMap] Map device already has items loaded, skipping clear step");
+                // Device already has items (likely scarabs) - don't clear, just add map
+                Log.InfoFormat("[OpenMap] Device already has {0} items, skipping clear", 
+                    deviceControl?.Inventory?.Items?.Count ?? 0);
             }
             else
             {
@@ -289,6 +282,7 @@ namespace Beasts.Phases
             }
 
             // Place map into device using MapDeviceService
+            Log.InfoFormat("[OpenMap] Attempting to place map: {0}", mapItem?.Name ?? "Unknown");
             if (!await MapDeviceService.PlaceItemInDevice(mapItem))
             {
                 _stepAttempts++;
@@ -302,8 +296,6 @@ namespace Beasts.Phases
                 await Coroutine.Sleep(500);
                 return PhaseResult.InProgress("Retrying map placement...");
             }
-
-            Log.Info("[OpenMap] Map placed in device successfully");
             _currentStep = MapOpeningStep.InsertScarabs;
             _stepAttempts = 0;
             return PhaseResult.InProgress("Map inserted, moving to scarabs");
@@ -311,12 +303,9 @@ namespace Beasts.Phases
 
         private async Task<PhaseResult> InsertScarabs(GameContext context)
         {
-            Log.Info("[OpenMap] Checking map device for existing scarabs");
-
             // First, check if map device UI already has scarabs loaded (user may have loaded manually)
             if (CheckMapDeviceForScarabs())
             {
-                Log.Info("[OpenMap] Scarabs already loaded in map device (manual load detected)");
                 _currentStep = MapOpeningStep.ActivateDevice;
                 _stepAttempts = 0;
                 return PhaseResult.InProgress("Scarabs ready (manual)");
@@ -325,18 +314,12 @@ namespace Beasts.Phases
             // Also check context (legacy check)
             if (context.MapDevice.HasAllScarabs)
             {
-                Log.Debug("[OpenMap] All scarabs already inserted (context check)");
                 _currentStep = MapOpeningStep.ActivateDevice;
                 _stepAttempts = 0;
                 return PhaseResult.InProgress("Scarabs ready");
             }
 
             var settings = BeastRoutineSettings.Instance.MapDevice;
-
-            Log.Info("[OpenMap] Inserting scarabs from inventory");
-            Log.InfoFormat("[OpenMap] Need: {0}x Duplicating, {1}x Herd",
-                settings.MinDuplicatingScarabs, settings.MinHerdScarabs);
-
             // Get inventory
             var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
             if (inventory == null)
@@ -374,8 +357,6 @@ namespace Beasts.Phases
 
             foreach (var scarab in allScarabs)
             {
-                Log.InfoFormat("[OpenMap] Placing scarab: {0}", scarab.Name);
-
                 if (!await MapDeviceService.PlaceItemInDevice(scarab))
                 {
                     Log.WarnFormat("[OpenMap] Failed to place scarab: {0}", scarab.Name);
@@ -391,8 +372,6 @@ namespace Beasts.Phases
 
                 await Coroutine.Sleep(100); // Small delay between scarabs
             }
-
-            Log.Info("[OpenMap] Successfully inserted all required scarabs");
             _currentStep = MapOpeningStep.ActivateDevice;
             _stepAttempts = 0;
             return PhaseResult.InProgress("Scarabs inserted");
@@ -400,8 +379,6 @@ namespace Beasts.Phases
 
         private async Task<PhaseResult> ActivateMapDevice(GameContext context)
         {
-            Log.Info("[OpenMap] Activating map device");
-
             bool masterDeviceOpen = LokiPoe.InGameState.MasterDeviceUi.IsOpened;
             bool mapDeviceOpen = LokiPoe.InGameState.MapDeviceUi.IsOpened;
 
@@ -416,13 +393,11 @@ namespace Beasts.Phases
 
                     if (heistMod != null)
                     {
-                        Log.Info("[OpenMap] Selecting Heist modifier");
                         LokiPoe.InGameState.MasterDeviceUi.SelectZanaMod(heistMod);
                         await Coroutine.Sleep(300); // Wait for selection
                     }
                     else
                     {
-                        Log.Info("[OpenMap] Heist modifier not available or not enabled");
                     }
                 }
                 catch (System.Exception ex)
@@ -431,7 +406,6 @@ namespace Beasts.Phases
                 }
 
                 // Activate using MasterDeviceUi
-                Log.Info("[OpenMap] Activating MasterDeviceUi");
                 LokiPoe.ProcessHookManager.ClearAllKeyStates();
                 await Coroutine.Sleep(500);
 
@@ -449,8 +423,6 @@ namespace Beasts.Phases
                     await Coroutine.Sleep(500);
                     return PhaseResult.InProgress("Retrying device activation...");
                 }
-
-                Log.Info("[OpenMap] MasterDeviceUi activated successfully");
             }
             else if (mapDeviceOpen)
             {
@@ -468,16 +440,12 @@ namespace Beasts.Phases
                     await Coroutine.Sleep(500);
                     return PhaseResult.InProgress("Retrying device activation...");
                 }
-
-                Log.Info("[OpenMap] MapDeviceUi activated successfully");
             }
             else
             {
                 Log.Error("[OpenMap] Neither MapDeviceUi nor MasterDeviceUi is opened!");
                 return PhaseResult.Failed("No device UI is open");
             }
-
-            Log.Info("[OpenMap] Map device activated successfully, waiting for portal");
             _currentStep = MapOpeningStep.WaitForPortal;
             _stepAttempts = 0;
             return PhaseResult.InProgress("Device activated, portal spawning...");
@@ -498,8 +466,6 @@ namespace Beasts.Phases
                 await Coroutine.Sleep(100);
                 return PhaseResult.Wait("Waiting for portal to appear...");
             }
-
-            Log.InfoFormat("[OpenMap] Portal appeared! (Distance: {0:F1})", portal.Distance);
             _currentStep = MapOpeningStep.EnterPortal;
             _stepAttempts = 0;
             return PhaseResult.InProgress("Portal ready");
@@ -532,8 +498,6 @@ namespace Beasts.Phases
             }
 
             // Enter the portal using PortalService
-            Log.Info("[OpenMap] Entering map portal");
-
             if (!await PortalService.EnterPortal(portal))
             {
                 _stepAttempts++;
@@ -546,8 +510,6 @@ namespace Beasts.Phases
                 await Coroutine.Sleep(300);
                 return PhaseResult.InProgress("Retrying portal entry...");
             }
-
-            Log.Info("[OpenMap] Successfully entered map portal!");
             await Coroutine.Sleep(2000); // Wait for loading screen
 
             return PhaseResult.Success("Map opened and entered");
@@ -555,13 +517,10 @@ namespace Beasts.Phases
 
         public void OnExit()
         {
-            Log.Debug($"[OpenMap] Exiting phase at step: {_currentStep}");
-
             // Close any open UIs before exiting phase (e.g., stash from restocking)
             if (LokiPoe.InGameState.StashUi.IsOpened ||
                 LokiPoe.InGameState.MapDeviceUi.IsOpened)
             {
-                Log.Info("[OpenMap] Closing open UIs before phase exit");
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
             }
 
@@ -594,8 +553,6 @@ namespace Beasts.Phases
                     .Where(item => item != null && item.IsValid)
                     .Count(item => item.Name != null &&
                                   item.Name.ToLower().Contains(scarabName.ToLower()));
-
-                Log.DebugFormat("[OpenMap] Found {0}x {1} in inventory", count, scarabName);
                 return count;
             }
             catch (System.Exception ex)
@@ -666,7 +623,9 @@ namespace Beasts.Phases
                     .Where(obj => obj.IsValid &&
                                  obj.Distance < 200f &&
                                  (obj.Metadata.Contains("Stash") ||
-                                  obj.Name.ToLower().Contains("stash")))
+                                  obj.Name.ToLower().Contains("stash")) &&
+                                 !obj.Metadata.Contains("Heist") &&  // Exclude Heist Locker
+                                 !obj.Metadata.Contains("Guild"))    // Exclude Guild Stash
                     .OrderBy(obj => obj.Distance)
                     .FirstOrDefault();
             }
@@ -727,7 +686,6 @@ namespace Beasts.Phases
 
                 if (!maps.Any())
                 {
-                    Log.Info("[OpenMap] No maps found in inventory");
                     return null;
                 }
 
@@ -769,7 +727,6 @@ namespace Beasts.Phases
 
                     if (preferredMap != null)
                     {
-                        Log.InfoFormat("[OpenMap] Found preferred map: {0}", preferredMap.Name);
                         return preferredMap;
                     }
                 }
@@ -793,7 +750,6 @@ namespace Beasts.Phases
 
                             if (rotationMap != null)
                             {
-                                Log.InfoFormat("[OpenMap] Found rotation map: {0}", rotationMap.Name);
                                 return rotationMap;
                             }
                         }
@@ -804,7 +760,6 @@ namespace Beasts.Phases
 
                 // Otherwise, return first available map
                 var selectedMap = maps.First();
-                Log.InfoFormat("[OpenMap] Selected map: {0}", selectedMap.Name);
                 return selectedMap;
             }
             catch (System.Exception ex)
@@ -837,7 +792,6 @@ namespace Beasts.Phases
                         string tierStr = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
                         if (int.TryParse(tierStr, out int tier))
                         {
-                            Log.DebugFormat("[OpenMap] Extracted tier {0} from name: {1}", tier, map.Name);
                             return tier;
                         }
                     }
@@ -870,7 +824,6 @@ namespace Beasts.Phases
 
                 if (!mapDeviceOpen && !masterDeviceOpen)
                 {
-                    Log.Debug("[OpenMap] Neither MapDeviceUi nor MasterDeviceUi is opened");
                     return false;
                 }
 
@@ -881,20 +834,17 @@ namespace Beasts.Phases
 
                 if (deviceControl == null)
                 {
-                    Log.Debug("[OpenMap] Device control is null");
                     return false;
                 }
 
                 var deviceInventory = deviceControl.Inventory;
                 if (deviceInventory == null)
                 {
-                    Log.Debug("[OpenMap] Device inventory is null");
                     return false;
                 }
                 
                 if (deviceInventory.Items == null)
                 {
-                    Log.Debug("[OpenMap] Device inventory items is null");
                     return false;
                 }
 
@@ -912,21 +862,15 @@ namespace Beasts.Phases
                     }
                 }
 
-                // Check if any item in device is a map
+                // Check if any item in device is an ACTUAL map (not fragments/scarabs)
+                // Maps have metadata containing "/Maps/" but fragments don't
                 bool hasMap = deviceInventory.Items.Any(item =>
                     item != null &&
                     item.IsValid &&
-                    item.Class != null &&
-                    item.Class.ToLower().Contains("map"));
+                    item.Metadata != null &&
+                    item.Metadata.Contains("/Maps/"));
 
-                if (hasMap)
-                {
-                    Log.Info("[OpenMap] ✓ Map device HAS a map loaded");
-                }
-                else
-                {
-                    Log.Info("[OpenMap] ✗ Map device does NOT have a map");
-                }
+                Log.InfoFormat("[OpenMap] CheckMapDeviceForMaps result: {0}", hasMap);
 
                 return hasMap;
             }
@@ -950,7 +894,6 @@ namespace Beasts.Phases
 
                 if (!mapDeviceOpen && !masterDeviceOpen)
                 {
-                    Log.Debug("[OpenMap] Neither MapDeviceUi nor MasterDeviceUi is opened");
                     return false;
                 }
 
@@ -961,14 +904,12 @@ namespace Beasts.Phases
 
                 if (deviceControl == null)
                 {
-                    Log.Debug("[OpenMap] Device control is null");
                     return false;
                 }
 
                 var deviceInventory = deviceControl.Inventory;
                 if (deviceInventory == null || deviceInventory.Items == null)
                 {
-                    Log.Debug("[OpenMap] Device inventory is null or has no items");
                     return false;
                 }
 
@@ -986,12 +927,9 @@ namespace Beasts.Phases
                         item.IsValid &&
                         item.Name != null &&
                         item.Name.ToLower().Contains("scarab"));
-
-                    Log.InfoFormat("[OpenMap] ✓ Map device HAS {0} scarab(s) loaded", scarabCount);
                 }
                 else
                 {
-                    Log.Info("[OpenMap] ✗ Map device does NOT have scarabs");
                 }
 
                 return hasScarabs;
@@ -1012,8 +950,6 @@ namespace Beasts.Phases
                 //
                 // For now, return null as this feature may not be available in API
                 // If it exists, it would be similar to checking stash tabs
-
-                Log.Debug("[OpenMap] Map device storage check not yet implemented");
                 return null;
             }
             catch (System.Exception ex)
@@ -1028,24 +964,21 @@ namespace Beasts.Phases
         /// </summary>
         private async Task<PhaseResult> WithdrawMapFromStash()
         {
+            Log.InfoFormat("[OpenMap] WithdrawMapFromStash - Starting map withdrawal process");
             var settings = BeastRoutineSettings.Instance.MapDevice;
 
             // IMPORTANT: Check if we already have a map - don't open stash if not needed
             var existingMap = FindMapInInventory();
             if (existingMap != null)
             {
-                Log.InfoFormat("[OpenMap] Map already in inventory: {0}, skipping withdrawal", existingMap.Name);
-                // Go directly to MoveToDevice since we now have a map
+                Log.InfoFormat("[OpenMap] Map found in inventory: {0}, returning to device", existingMap.Name);
+                // Go back to MoveToDevice - mover will handle walking back to device
                 _currentStep = MapOpeningStep.MoveToDevice;
                 _stepAttempts = 0;
                 return PhaseResult.InProgress("Map already available, returning to device");
             }
-
-            Log.Info("[OpenMap] No map in inventory, will withdraw from stash");
-
             // Step 1: Find and navigate to stash
             var stash = FindStashChest();
-            Log.Info($"[OpenMap] Stash object found: {stash != null}, Distance: {stash?.Distance ?? -1}");
             if (stash == null)
             {
                 _stepAttempts++;
@@ -1060,50 +993,51 @@ namespace Beasts.Phases
                 return PhaseResult.InProgress("Searching for stash...");
             }
 
-            // Step 2: Move to stash
+            // Step 2: Move to stash  
             if (stash.Distance > 15f)
             {
+                Log.InfoFormat("[OpenMap] Moving to stash at {0} (distance: {1:F1}m)", stash.Position, stash.Distance);
+                // Use PlayerMoverManager (will use BeastMover when configured)
                 PlayerMoverManager.Current.MoveTowards(stash.Position);
                 await Coroutine.Sleep(100);
                 return PhaseResult.InProgress($"Moving to stash ({stash.Distance:F1}m)");
             }
+            
+            Log.InfoFormat("[OpenMap] Arrived at stash (distance: {0:F1}m)", stash.Distance);
 
             // Step 3: Close any open UIs before opening stash (prevents UI conflicts)
             if (LokiPoe.InGameState.MapDeviceUi.IsOpened ||
                 LokiPoe.InGameState.StashUi.IsOpened)
             {
-                Log.Info("[OpenMap] Closing open UIs before opening stash");
-                LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
-                await Coroutine.Sleep(300);
-            }
-
-            // Verify all UIs are closed - with a maximum attempt limit to prevent infinite loops
-            int verifyAttempts = 0;
-            while ((LokiPoe.InGameState.MapDeviceUi.IsOpened ||
-                    LokiPoe.InGameState.StashUi.IsOpened) &&
-                   verifyAttempts < 5)
-            {
-                Log.Debug("[OpenMap] Waiting for UIs to close...");
-                await Coroutine.Sleep(200);
-                verifyAttempts++;
-            }
-
-            // If UIs still won't close after 5 attempts, log warning and continue
-            if (verifyAttempts >= 5)
-            {
-                Log.Warn("[OpenMap] UIs did not close after 5 attempts - proceeding anyway");
-                _stepAttempts++;
-                if (_stepAttempts > 3)
+                // Try closing multiple times if needed
+                for (int i = 0; i < 3; i++)
                 {
-                    return PhaseResult.Failed("Cannot close blocking UIs - restart bot or close game UIs manually");
+                    if (!LokiPoe.InGameState.MapDeviceUi.IsOpened && !LokiPoe.InGameState.StashUi.IsOpened)
+                        break; // UIs closed, exit loop
+                    
+                    LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+                    await Coroutine.Sleep(500);
                 }
-                return PhaseResult.InProgress("Retrying UI close...");
+                
+                // If STILL open after 3 attempts, return and retry on next tick
+                if (LokiPoe.InGameState.MapDeviceUi.IsOpened || LokiPoe.InGameState.StashUi.IsOpened)
+                {
+                    _stepAttempts++;
+                    if (_stepAttempts > 5)
+                    {
+                        return PhaseResult.Failed("Cannot close blocking UIs - restart bot or close game UIs manually");
+                    }
+                    return PhaseResult.InProgress("Waiting for UIs to close...");
+                }
+                
+                // Reset attempts counter since we succeeded
+                _stepAttempts = 0;
             }
 
             // Step 4: Open stash if not already open
             if (!LokiPoe.InGameState.StashUi.IsOpened)
             {
-                Log.Info("[OpenMap] Stash is not opened, attempting to open...");
+                Log.InfoFormat("[OpenMap] Stash UI not open, opening...");
                 await Coroutines.FinishCurrentAction();
                 var interactResult = await Coroutines.InteractWith(stash);
 
@@ -1112,21 +1046,40 @@ namespace Beasts.Phases
                     _stepAttempts++;
                     if (_stepAttempts > 5)
                     {
+                        Log.ErrorFormat("[OpenMap] Failed to open stash after 5 attempts");
                         return PhaseResult.Failed("Failed to open stash");
                     }
 
-                    Log.Warn($"[OpenMap] Failed to interact with stash (attempt {_stepAttempts}/5)");
+                    Log.WarnFormat("[OpenMap] Failed to interact with stash (attempt {0}/5)", _stepAttempts);
                     await Coroutine.Sleep(300);
                     return PhaseResult.InProgress("Opening stash...");
                 }
-
-                Log.Info("[OpenMap] Stash interaction initiated, waiting for UI...");
-                await Coroutine.Sleep(500); // Wait for stash UI
-                return PhaseResult.InProgress("Waiting for stash UI...");
+                
+                // Wait for UI to open with verification
+                Log.InfoFormat("[OpenMap] Stash interaction successful, waiting for UI to open");
+                for (int i = 0; i < 20; i++) // Wait up to 2 seconds
+                {
+                    await Coroutine.Sleep(100);
+                    if (LokiPoe.InGameState.StashUi.IsOpened)
+                    {
+                        Log.InfoFormat("[OpenMap] Stash UI opened after {0}ms", (i + 1) * 100);
+                        break;
+                    }
+                }
+                
+                // If still not open, return and retry
+                if (!LokiPoe.InGameState.StashUi.IsOpened)
+                {
+                    Log.WarnFormat("[OpenMap] Stash UI did not open after interaction, retrying...");
+                    await Coroutine.Sleep(300);
+                    return PhaseResult.InProgress("Waiting for stash UI...");
+                }
+                
+                // Reset attempts on success
+                _stepAttempts = 0;
             }
-
-            Log.Info("[OpenMap] STASH IS OPEN! Beginning tab search...");
-
+            
+            Log.InfoFormat("[OpenMap] Stash UI is open, searching for maps");
             // Step 5: Search all stash tabs for suitable maps
             Log.InfoFormat("[OpenMap] Searching stash for maps (tier {0}-{1}, preferred: {2})",
                 settings.MinMapTier, settings.MaxMapTier,
@@ -1142,25 +1095,19 @@ namespace Beasts.Phases
             // Iterate through stash tabs to find maps
             // Note: TabControl doesn't expose TotalTabs, so we'll try up to 100 tabs
             const int maxTabs = 100;
-            Log.Info($"[OpenMap] Starting tab iteration (max {maxTabs} tabs)");
             for (int tabIndex = 0; tabIndex < maxTabs; tabIndex++)
             {
                 // Switch to tab
                 if (tabControl.CurrentTabIndex != tabIndex)
                 {
-                    Log.Debug($"[OpenMap] Switching to tab index {tabIndex}");
                     tabControl.SwitchToTabMouse(tabIndex);
                     await Coroutine.Sleep(200); // Wait for tab to load
                 }
 
                 var tabName = tabControl.CurrentTabName;
                 var stashInventory = LokiPoe.InGameState.StashUi.InventoryControl?.Inventory;
-
-                Log.Debug($"[OpenMap] Tab {tabIndex}: Name='{tabName}', InventoryValid={stashInventory != null}");
-
                 if (stashInventory == null)
                 {
-                    Log.Debug($"[OpenMap] Tab {tabIndex} has null inventory, skipping");
                     continue;
                 }
 
@@ -1202,24 +1149,18 @@ namespace Beasts.Phases
                     mapToWithdraw = suitableMaps.First();
 
                 // Withdraw the map
-                Log.InfoFormat("[OpenMap] Withdrawing map: {0} from tab: {1}", mapToWithdraw.Name, tabName);
-
                 LokiPoe.ProcessHookManager.ClearAllKeyStates();
                 var fastMoveResult = LokiPoe.InGameState.StashUi.InventoryControl.FastMove(mapToWithdraw.LocalId);
 
                 if (fastMoveResult == FastMoveResult.None)
                 {
-                    Log.Info("[OpenMap] Map withdrawn successfully");
-
                     // Close stash using escape key
-                    Log.Debug("[OpenMap] Closing stash UI...");
                     LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                     await Coroutine.Sleep(500);
 
                     // Simple verification - don't spam close if it's not working
                     if (LokiPoe.InGameState.StashUi.IsOpened)
                     {
-                        Log.Debug("[OpenMap] Stash still open after first close, retrying once");
                         LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                         await Coroutine.Sleep(500);
 
@@ -1230,10 +1171,9 @@ namespace Beasts.Phases
                     }
                     else
                     {
-                        Log.Debug("[OpenMap] Stash closed successfully");
                     }
 
-                    // Go back to device to insert the map we just withdrew
+                    // Go back to MoveToDevice - mover will walk us back to device
                     _currentStep = MapOpeningStep.MoveToDevice;
                     _stepAttempts = 0;
                     return PhaseResult.InProgress("Map withdrawn, returning to device...");
@@ -1250,14 +1190,12 @@ namespace Beasts.Phases
                 maxTabs, settings.MinMapTier, settings.MaxMapTier);
 
             // Close stash using escape key
-            Log.Debug("[OpenMap] Closing stash UI (no maps found)...");
             LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
             await Coroutine.Sleep(500);
 
             // Simple retry if still open
             if (LokiPoe.InGameState.StashUi.IsOpened)
             {
-                Log.Debug("[OpenMap] Stash still open, retrying close");
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                 await Coroutine.Sleep(500);
             }

@@ -39,14 +39,10 @@ namespace Beasts.Services
                     mapDeviceOpen, masterDeviceOpen);
                 return true;
             }
-
-            Log.Debug("[MapDeviceService] Map device UI not open - attempting to open it");
-
             // Close any blocking windows first (stash, heist locker, etc.)
             if (LokiPoe.InGameState.StashUi.IsOpened ||
                 LokiPoe.InGameState.HeistLockerUi.IsOpened)
             {
-                Log.Info("[MapDeviceService] Closing open UIs before opening map device");
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                 await Coroutine.Sleep(200);
             }
@@ -57,20 +53,15 @@ namespace Beasts.Services
                 Log.Warn("[MapDeviceService] Map device not found");
                 return false;
             }
-
-            Log.DebugFormat("[MapDeviceService] Found map device at distance {0:F1}", device.Distance);
-
             // Move closer if needed
             if (device.Distance > 30)
             {
-                Log.Debug("[MapDeviceService] Moving closer to map device...");
                 PlayerMoverManager.Current.MoveTowards(device.Position);
                 await Coroutine.Sleep(100);
                 return false; // Still moving
             }
 
             // Interact with device
-            Log.Debug("[MapDeviceService] Attempting to interact with map device...");
             LokiPoe.ProcessHookManager.ClearAllKeyStates();
 
             if (!await Coroutines.InteractWith(device))
@@ -80,7 +71,6 @@ namespace Beasts.Services
             }
 
             // Wait for UI to open (up to 3 seconds)
-            Log.Debug("[MapDeviceService] Waiting for map device UI to open...");
             bool uiOpened = false;
             for (int i = 0; i < 30; i++) // 30 * 100ms = 3000ms
             {
@@ -97,8 +87,6 @@ namespace Beasts.Services
                 Log.Warn("[MapDeviceService] Map device UI did not open after interaction");
                 return false;
             }
-
-            Log.Info("[MapDeviceService] Map device opened successfully");
             await Coroutine.Sleep(200);
             return true;
         }
@@ -116,13 +104,21 @@ namespace Beasts.Services
                 return false;
             }
 
-            if (!LokiPoe.InGameState.MapDeviceUi.IsOpened)
+            // Check both UIs - use whichever is open
+            bool mapDeviceOpen = LokiPoe.InGameState.MapDeviceUi.IsOpened;
+            bool masterDeviceOpen = LokiPoe.InGameState.MasterDeviceUi.IsOpened;
+            
+            if (!mapDeviceOpen && !masterDeviceOpen)
             {
                 Log.Error("[MapDeviceService] Map device is not open");
                 return false;
             }
 
-            var deviceControl = LokiPoe.InGameState.MapDeviceUi.InventoryControl;
+            // Use correct UI based on which is open
+            var deviceControl = mapDeviceOpen 
+                ? LokiPoe.InGameState.MapDeviceUi.InventoryControl 
+                : LokiPoe.InGameState.MasterDeviceUi.InventoryControl;
+                
             if (deviceControl == null)
             {
                 Log.Error("[MapDeviceService] Cannot access map device inventory");
@@ -130,17 +126,20 @@ namespace Beasts.Services
             }
 
             var oldCount = deviceControl.Inventory?.Items?.Count ?? 0;
-
-            Log.InfoFormat("[MapDeviceService] Placing {0} into device", item.FullName ?? item.Name);
+            Log.InfoFormat("[MapDeviceService] Current device item count: {0}", oldCount);
 
             LokiPoe.ProcessHookManager.ClearAllKeyStates();
 
-            // Use FastMove to place item into device
-            var result = LokiPoe.InGameState.InventoryUi.InventoryControl_Main.FastMove(item.LocalId);
+            // Use FastMove directly on the device control to place item from inventory
+            // This should work similar to how stashing works
+            Log.InfoFormat("[MapDeviceService] Calling FastMove on device for item: {0} (LocalId: {1})",
+                item.Name, item.LocalId);
+            var result = deviceControl.FastMove(item.LocalId);
+            Log.InfoFormat("[MapDeviceService] Device FastMove result: {0}", result);
 
             if (result != FastMoveResult.None)
             {
-                Log.ErrorFormat("[MapDeviceService] Failed to place item: {0}", result);
+                Log.ErrorFormat("[MapDeviceService] Failed to place item in device: {0}", result);
                 return false;
             }
 
@@ -152,6 +151,8 @@ namespace Beasts.Services
                 if (newCount == oldCount + 1)
                 {
                     itemPlaced = true;
+                    Log.InfoFormat("[MapDeviceService] Item placed successfully! Count increased from {0} to {1}",
+                        oldCount, newCount);
                     break;
                 }
                 await Coroutine.Sleep(100);
@@ -159,13 +160,12 @@ namespace Beasts.Services
 
             if (!itemPlaced)
             {
-                Log.Error("[MapDeviceService] Item did not appear in device");
+                var finalCount = deviceControl.Inventory?.Items?.Count ?? 0;
+                Log.ErrorFormat("[MapDeviceService] Item did not appear in device. OldCount: {0}, FinalCount: {1}",
+                    oldCount, finalCount);
                 return false;
             }
-
-            Log.InfoFormat("[MapDeviceService] {0} placed successfully", item.FullName ?? item.Name);
-
-            await Coroutine.Sleep(100);
+            await Coroutine.Sleep(200); // Extra wait for UI to settle
             return true;
         }
 
@@ -191,12 +191,8 @@ namespace Beasts.Services
             var items = deviceControl.Inventory?.Items;
             if (items == null || items.Count == 0)
             {
-                Log.Debug("[MapDeviceService] Map device is already empty");
                 return true;
             }
-
-            Log.InfoFormat("[MapDeviceService] Clearing {0} items from device", items.Count);
-
             // Move each item back to inventory
             foreach (var item in items.ToList())
             {
@@ -214,9 +210,6 @@ namespace Beasts.Services
 
                 await Coroutine.Sleep(50);
             }
-
-            Log.Info("[MapDeviceService] Map device cleared");
-
             return true;
         }
 
@@ -231,9 +224,6 @@ namespace Beasts.Services
                 Log.Error("[MapDeviceService] Map device is not open");
                 return false;
             }
-
-            Log.Info("[MapDeviceService] Activating map device");
-
             LokiPoe.ProcessHookManager.ClearAllKeyStates();
 
             // Delay to ensure UI is ready (especially important when all items are in one section)
@@ -247,7 +237,6 @@ namespace Beasts.Services
             }
 
             // Activate the map device
-            Log.Debug("[MapDeviceService] Calling MapDeviceUi.Activate()");
             var activated = LokiPoe.InGameState.MapDeviceUi.Activate();
 
             if (activated != LokiPoe.InGameState.ActivateResult.None)
@@ -273,9 +262,6 @@ namespace Beasts.Services
                 Log.Warn("[MapDeviceService] Map device UI did not close after activation");
                 // Not necessarily an error - device might stay open in some cases
             }
-
-            Log.Info("[MapDeviceService] Map device activated successfully");
-
             await Coroutine.Sleep(500);
             return true;
         }
@@ -325,8 +311,6 @@ namespace Beasts.Services
             // Activate device
             if (!await ActivateMapDevice())
                 return false;
-
-            Log.Info("[MapDeviceService] Map opened successfully");
             return true;
         }
 

@@ -98,18 +98,8 @@ namespace Beasts.Perception
                     BlockedByDoor = false
                 },
 
-                // Map Device context
-                MapDevice = new MapDeviceContext
-                {
-                    IsFound = false,
-                    IsInRange = false,
-                    IsActive = false,
-                    HasMap = false,
-                    HasAllScarabs = false,
-                    PortalAvailable = false,
-                    Position = Vector2i.Zero,
-                    Distance = 0f
-                }
+                // Map Device context (basic info - detailed checks happen in OpenMapPhase)
+                MapDevice = BuildMapDeviceContext()
             };
 
             // Check if enemies are near mechanic target
@@ -332,6 +322,72 @@ namespace Beasts.Perception
                    name.Contains("karui shores") ||
                    name.Contains("bridge") ||
                    name.Contains("overseer's tower");
+        }
+
+        /// <summary>
+        /// Build map device context - just checks if device exists, NOT if it has items
+        /// Item checking is done by OpenMapPhase when device UI is open
+        /// </summary>
+        private MapDeviceContext BuildMapDeviceContext()
+        {
+            // Don't check map device unless in hideout
+            var currentArea = LokiPoe.CurrentWorldArea;
+            if (!IsInHideout(currentArea))
+            {
+                return new MapDeviceContext
+                {
+                    IsFound = false,
+                    IsInRange = false,
+                    IsActive = false,
+                    HasMap = false,
+                    HasAllScarabs = false,
+                    PortalAvailable = false,
+                    Position = Vector2i.Zero,
+                    Distance = 0f
+                };
+            }
+
+            // Find map device in hideout
+            var mapDevice = LokiPoe.ObjectManager.Objects
+                .FirstOrDefault(obj => obj != null &&
+                                      obj.IsValid &&
+                                      obj.Distance < 200f &&
+                                      (obj.Metadata.Contains("MapDevice") ||
+                                       obj.Name.ToLower().Contains("map device")));
+
+            if (mapDevice == null)
+            {
+                return new MapDeviceContext
+                {
+                    IsFound = false,
+                    IsInRange = false,
+                    IsActive = false,
+                    HasMap = false,
+                    HasAllScarabs = false,
+                    PortalAvailable = false,
+                    Position = Vector2i.Zero,
+                    Distance = 0f
+                };
+            }
+
+            // Device found - check if portal exists nearby (indicates active)
+            var portal = LokiPoe.ObjectManager.Objects
+                .FirstOrDefault(obj => obj != null &&
+                                      obj.IsValid &&
+                                      obj.Distance < 50f &&
+                                      obj.Metadata.Contains("Portal"));
+
+            return new MapDeviceContext
+            {
+                IsFound = true,
+                IsInRange = mapDevice.Distance <= 30f,
+                IsActive = portal != null, // If portal exists, device was activated
+                HasMap = false, // Can't check without opening UI
+                HasAllScarabs = false, // Can't check without opening UI
+                PortalAvailable = portal != null,
+                Position = mapDevice.Position,
+                Distance = mapDevice.Distance
+            };
         }
 
         // Inventory detection helpers

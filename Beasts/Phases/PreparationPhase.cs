@@ -11,6 +11,7 @@ using DreamPoeBot.Loki.Game.Objects;
 using Beasts.Core;
 using Beasts.Configuration;
 using log4net;
+using Logger = DreamPoeBot.Loki.Common.Logger;
 
 namespace Beasts.Phases
 {
@@ -31,7 +32,7 @@ namespace Beasts.Phases
     /// </summary>
     public class PreparationPhase : IPhase
     {
-        private static readonly ILog Log = Beasts.Core.Logger.GetLoggerInstanceForType();
+        private static readonly ILog Log = Logger.GetLoggerInstanceForType();
 
         public string Name => "Preparation";
 
@@ -65,7 +66,6 @@ namespace Beasts.Phases
             
             if (needPortalScrolls)
             {
-                Log.Info("[Preparation] Need to restock portal scrolls from stash");
                 return true;
             }
 
@@ -78,10 +78,6 @@ namespace Beasts.Phases
         {
             // Check for stuck state
             CheckStuckState(context.MyPosition);
-
-            Log.DebugFormat("[Preparation] Step: {0}, Attempts: {1}, Inventory: {2}%",
-                _currentStep, _stepAttempts, context.Player.InventoryFullnessPercent);
-
             switch (_currentStep)
             {
                 case PrepPhaseStep.AnalyzeInventory:
@@ -108,9 +104,6 @@ namespace Beasts.Phases
         private async Task<PhaseResult> AnalyzeInventory(GameContext context)
         {
             await Task.CompletedTask; // Method needs to be async for consistency
-
-            Log.Info("[Preparation] PreparationPhase is for STARTUP ONLY - going directly to restock portal scrolls");
-
             // PreparationPhase should NEVER stash items
             // Stashing is handled by ExitAndStashPhase after returning from maps
             // This phase ONLY restocks portal scrolls for startup
@@ -189,31 +182,22 @@ namespace Beasts.Phases
             if (LokiPoe.InGameState.StashUi.IsOpened ||
                 LokiPoe.InGameState.HeistLockerUi.IsOpened)
             {
-                Log.Info("[Preparation] Closing UIs before restock");
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                 await Coroutine.Sleep(500);
 
                 if (LokiPoe.InGameState.StashUi.IsOpened ||
                     LokiPoe.InGameState.HeistLockerUi.IsOpened)
                 {
-                    Log.Debug("[Preparation] UIs still open, waiting...");
                     return PhaseResult.InProgress("Waiting for UIs to close");
                 }
             }
-
-            Log.Info("[Preparation] Checking for portal scrolls to restock");
-
             // PreparationPhase only handles portal scrolls
             // Maps and scarabs are handled by OpenMapPhase
             if (context.Player.HasPortalScrolls)
             {
-                Log.Info("[Preparation] Portal scrolls available, phase complete");
                 _currentStep = PrepPhaseStep.Complete;
                 return PhaseResult.Success("Preparation complete - ready for map opening");
             }
-
-            Log.Info("[Preparation] Need to restock portal scrolls from stash");
-
             // Step 1: Find and navigate to stash
             if (_stashChest == null)
             {
@@ -238,7 +222,6 @@ namespace Beasts.Phases
             float distance = _stashChest.Distance;
             if (distance > INTERACTION_RANGE)
             {
-                Log.DebugFormat("[Preparation] Moving to stash for portal scrolls (Distance: {0:F1})", distance);
                 PlayerMoverManager.Current.MoveTowards(_stashChest.Position);
                 await Coroutine.Sleep(100);
                 return PhaseResult.InProgress($"Moving to stash ({distance:F1}m)");
@@ -247,7 +230,6 @@ namespace Beasts.Phases
             // Step 3: Open stash if not already open
             if (!LokiPoe.InGameState.StashUi.IsOpened)
             {
-                Log.Info("[Preparation] Opening stash to withdraw portal scrolls");
                 await Coroutines.FinishCurrentAction();
                 var interactResult = await Coroutines.InteractWith(_stashChest);
 
@@ -268,9 +250,6 @@ namespace Beasts.Phases
                 await Coroutine.Sleep(500); // Wait for stash UI
                 return PhaseResult.InProgress("Waiting for stash UI...");
             }
-
-            Log.Info("[Preparation] Stash opened - withdrawing portal scrolls");
-
             // Step 4: Navigate to currency tab and withdraw portal scrolls
             var tabControl = LokiPoe.InGameState.StashUi.TabControl;
             if (tabControl == null)
@@ -285,7 +264,6 @@ namespace Beasts.Phases
             {
                 if (tabControl.CurrentTabIndex != tabIndex)
                 {
-                    Log.DebugFormat("[Preparation] Switching to tab {0} to search for portal scrolls", tabIndex);
                     tabControl.SwitchToTabMouse(tabIndex);
                     await Coroutine.Sleep(200);
                 }
@@ -303,15 +281,11 @@ namespace Beasts.Phases
 
                 if (portalScroll != null)
                 {
-                    Log.InfoFormat("[Preparation] Found portal scrolls in tab {0}, withdrawing stack", tabIndex);
-
                     LokiPoe.ProcessHookManager.ClearAllKeyStates();
                     var fastMoveResult = LokiPoe.InGameState.StashUi.InventoryControl.FastMove(portalScroll.LocalId);
 
                     if (fastMoveResult == FastMoveResult.None)
                     {
-                        Log.Info("[Preparation] Portal scrolls withdrawn successfully");
-
                         // Close stash
                         LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                         await Coroutine.Sleep(300);
@@ -455,14 +429,9 @@ namespace Beasts.Phases
 
         public void OnExit()
         {
-            Log.InfoFormat("[Preparation] Phase complete - Stashed {0} items, {1} blueprints",
-                _initialInventoryCount - _itemsToStash.Count - _blueprintsToStash.Count,
-                _initialInventoryCount > 0 ? _blueprintsToStash.Count : 0);
-
             // Close any open UIs before exiting phase
             if (LokiPoe.InGameState.StashUi.IsOpened || LokiPoe.InGameState.HeistLockerUi.IsOpened)
             {
-                Log.Info("[Preparation] Closing open UIs before phase exit");
                 LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
                 System.Threading.Thread.Sleep(300);
             }
