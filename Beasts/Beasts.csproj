@@ -95,6 +95,7 @@
     <Compile Include="Services\StuckDetector.cs" />
     <Compile Include="Services\CombatStateService.cs" />
     <Compile Include="Services\PoeNinjaService.cs" />
+    <Compile Include="Helpers\MapDeviceHelper.cs" />
     <Compile Include="Helpers\MetadataPathMatcher.cs" />
     <Compile Include="Helpers\PhaseConditionHelpers.cs" />
     <Compile Include="Core\GameConstants.cs" />
