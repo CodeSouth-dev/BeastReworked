@@ -1,0 +1,14 @@
+{
+  "name": "SimpleMapBot",
+  "description": "Simple map clearing bot - runs maps, kills monsters, loots items",
+  "author": "YourName",
+  "version": "1.0.0",
+  "bot": "SimpleMapBot.Core.SimpleMapBot",
+  "components": [
+    {
+      "name": "SimpleMover",
+      "type": "IPlayerMover",
+      "class": "SimpleMover.SimpleMover"
+    }
+  ]
+}

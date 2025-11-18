@@ -1,0 +1,10 @@
+{
+  "AssemblyName": "BeastMover",
+  "FileList": [
+    "BeastMover.cs",
+    "BeastMoverSettings.cs"
+  ],
+  "Dependencies": [],
+  "References": []
+}
+

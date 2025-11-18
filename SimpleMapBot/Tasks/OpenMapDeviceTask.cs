@@ -1,0 +1,191 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using DreamPoeBot.BotFramework;
+using DreamPoeBot.Loki.Bot;
+using DreamPoeBot.Loki.Common;
+using DreamPoeBot.Loki.Coroutine;
+using DreamPoeBot.Loki.Game;
+using SimpleMapBot.Configuration;
+using log4net;
+
+namespace SimpleMapBot.Tasks
+{
+    public class OpenMapDeviceTask : ITask
+    {
+        private static readonly ILog Log = Logger.GetLoggerInstanceForType();
+        private bool _mapPlaced = false;
+
+        public string Name => "OpenMapDeviceTask";
+        public string Description => "Opens map device and places map";
+        public bool IsEnabled => true;
+
+        public async Task<bool> Run()
+        {
+            var cwa = LokiPoe.CurrentWorldArea;
+
+            // Only run in hideout
+            if (!cwa.IsHideoutArea && !cwa.IsTown)
+                return false;
+
+            // Check if map device is already activated
+            if (IsMapDeviceActivated())
+            {
+                _mapPlaced = true;
+                return false;
+            }
+
+            // Check if we have a map in inventory
+            var map = GetMapFromInventory();
+            if (map == null)
+            {
+                Log.Warn("[OpenMapDeviceTask] No map in inventory");
+                return false;
+            }
+
+            // Open map device
+            if (!await OpenMapDevice())
+                return false;
+
+            // Place map
+            if (await PlaceMap(map))
+            {
+                // Activate device
+                if (await ActivateDevice())
+                {
+                    _mapPlaced = true;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsMapDeviceActivated()
+        {
+            // Check if portal is available near map device
+            var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
+                .FirstOrDefault(p => p.Distance < 50 && p.Metadata.Contains("MapDevice"));
+
+            return portal != null;
+        }
+
+        private Item GetMapFromInventory()
+        {
+            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+            if (inventory == null)
+                return null;
+
+            return inventory.Items.FirstOrDefault(item =>
+                item != null && item.Class == "Maps");
+        }
+
+        private async Task<bool> OpenMapDevice()
+        {
+            // Check if already open
+            if (LokiPoe.InGameState.MapDeviceUi.IsOpened || LokiPoe.InGameState.MasterDeviceUi.IsOpened)
+                return true;
+
+            // Close any other windows
+            if (LokiPoe.InGameState.StashUi.IsOpened)
+            {
+                LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+                await Coroutine.Sleep(200);
+            }
+
+            var device = LokiPoe.ObjectManager.MapDevice;
+            if (device == null)
+            {
+                Log.Warn("[OpenMapDeviceTask] Map device not found");
+                return false;
+            }
+
+            // Move closer if needed
+            if (device.Distance > 30)
+            {
+                PlayerMoverManager.Current.MoveTowards(device.Position);
+                await Coroutine.Sleep(100);
+                return false;
+            }
+
+            // Interact
+            LokiPoe.ProcessHookManager.ClearAllKeyStates();
+            if (!await Coroutines.InteractWith(device))
+            {
+                Log.Warn("[OpenMapDeviceTask] Failed to interact with map device");
+                return false;
+            }
+
+            // Wait for UI
+            for (int i = 0; i < 30; i++)
+            {
+                if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
+                    return true;
+                await Coroutine.Sleep(100);
+            }
+
+            Log.Warn("[OpenMapDeviceTask] Map device UI did not open");
+            return false;
+        }
+
+        private async Task<bool> PlaceMap(Item map)
+        {
+            if (map == null)
+                return false;
+
+            Log.InfoFormat("[OpenMapDeviceTask] Placing map: {0} (T{1})", map.Name, map.MapTier);
+
+            // Use the map item (places it in device)
+            int invId = map.LocalId;
+            var inventory = LokiPoe.InGameState.InventoryUi.InventoryControl_Main;
+
+            if (!inventory.UseItem(invId))
+            {
+                Log.Warn("[OpenMapDeviceTask] Failed to use map item");
+                return false;
+            }
+
+            await Coroutine.Sleep(300);
+            return true;
+        }
+
+        private async Task<bool> ActivateDevice()
+        {
+            var mapDeviceUi = LokiPoe.InGameState.MapDeviceUi;
+            if (!mapDeviceUi.IsOpened)
+            {
+                Log.Warn("[OpenMapDeviceTask] Map device UI not open");
+                return false;
+            }
+
+            // Click the activate button
+            Log.Info("[OpenMapDeviceTask] Activating map device");
+
+            if (!mapDeviceUi.Activate())
+            {
+                Log.Warn("[OpenMapDeviceTask] Failed to activate map device");
+                return false;
+            }
+
+            await Coroutine.Sleep(500);
+
+            // Close UI
+            LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+            await Coroutine.Sleep(200);
+
+            // Wait for portal to appear
+            for (int i = 0; i < 50; i++)
+            {
+                if (IsMapDeviceActivated())
+                {
+                    Log.Info("[OpenMapDeviceTask] Map device activated successfully");
+                    return true;
+                }
+                await Coroutine.Sleep(100);
+            }
+
+            Log.Warn("[OpenMapDeviceTask] Portal did not appear after activation");
+            return false;
+        }
+    }
+}
