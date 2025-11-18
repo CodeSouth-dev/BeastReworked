@@ -78,6 +78,7 @@ namespace SimpleMapBot.Tasks
                         // New map - reset all state
                         MapState.Reset();
                         MapState.MapInProgress = true;
+                        Statistics.Instance.OnMapStarted(); // Track map start
                         Log.Info("[EnterMapTask] Started new map");
                     }
                     else
