@@ -32,7 +32,7 @@ namespace BeastCombatRoutine
         private int _buffSlot2;
         private int _buffSlot3;
 
-        // Aura Skill Slots (always-on skills like Righteous Fire, Heralds, Auras)
+        // Aura Skill Slots (toggle skills that need reactivation like Righteous Fire, Aspects)
         private int _auraSlot1;
         private int _auraSlot2;
         private int _auraSlot3;
@@ -184,8 +184,9 @@ namespace BeastCombatRoutine
         }
 
         /// <summary>
-        /// First aura skill slot (always-on skills like Righteous Fire, Heralds, Auras)
-        /// These are activated once when entering combat areas and stay on
+        /// First aura skill slot (toggle skills like Righteous Fire, Aspect of the Spider)
+        /// These need to be reactivated when entering combat areas
+        /// Note: Heralds are permanent and don't need reactivation
         /// </summary>
         [DefaultValue(-1)]
         public int AuraSlot1
@@ -236,7 +237,8 @@ namespace BeastCombatRoutine
         }
 
         /// <summary>
-        /// Enable automatic aura activation in combat areas (Righteous Fire, Heralds, etc.)
+        /// Enable automatic aura activation in combat areas (Righteous Fire, Aspects, etc.)
+        /// Use for skills that toggle off when changing zones
         /// </summary>
         [DefaultValue(true)]
         public bool EnableAuraActivation

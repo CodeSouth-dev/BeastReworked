@@ -220,8 +220,9 @@ namespace BeastCombatRoutine
         }
 
         /// <summary>
-        /// Activate auras (always-on skills like Righteous Fire, Heralds, Auras)
-        /// These should stay active throughout the entire map
+        /// Activate auras (toggle skills like Righteous Fire, Aspects)
+        /// These need to be reactivated when entering maps
+        /// Note: Heralds are permanent in current PoE and don't need reactivation
         /// </summary>
         private void ActivateAuras()
         {
