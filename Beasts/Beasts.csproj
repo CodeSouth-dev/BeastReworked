@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{0DCD9093-9649-499E-B58C-CC2CAD808C78}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Beasts</RootNamespace>
+    <AssemblyName>Beasts</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="DreamPoeBot">
+      <HintPath>C:\Users\Elijah\Documents\dreamboeat\DreamPoeBot\DreamPoeBot.exe</HintPath>
+    </Reference>
+    <Reference Include="log4net">
+      <HintPath>C:\Users\Elijah\Documents\dreamboeat\DreamPoeBot\log4net.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>C:\Users\Elijah\Documents\dreamboeat\DreamPoeBot\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="GUI\BeastRoutineGui.cs" />
+    <Compile Include="Core\BeastRoutine.cs" />
+    <Compile Include="Core\MechanicHunterState.cs" />
+    <Compile Include="Core\GameContext.cs" />
+    <Compile Include="Core\StateController.cs" />
+    <Compile Include="Core\PhaseRegistry.cs" />
+    <Compile Include="Core\PhaseResult.cs" />
+    <Compile Include="Core\Logger.cs" />
+    <Compile Include="Perception\IPerceptionModule.cs" />
+    <Compile Include="Perception\PerceptionManager.cs" />
+    <Compile Include="Perception\BeastDetector.cs" />
+    <Compile Include="Perception\CacheDetector.cs" />
+    <Compile Include="Perception\HeistCacheDetector.cs" />
+    <Compile Include="Perception\CombatPerception.cs" />
+    <Compile Include="Perception\LootPerception.cs" />
+    <Compile Include="Perception\PlayerPerception.cs" />
+    <Compile Include="Services\PortalService.cs" />
+    <Compile Include="Services\MapDeviceService.cs" />
+    <Compile Include="Services\StuckDetector.cs" />
+    <Compile Include="Services\CombatStateService.cs" />
+    <Compile Include="Services\PoeNinjaService.cs" />
+    <Compile Include="Helpers\MetadataPathMatcher.cs" />
+    <Compile Include="Helpers\PhaseConditionHelpers.cs" />
+    <Compile Include="Core\GameConstants.cs" />
+    <Compile Include="Models\FlaskCounts.cs" />
+    <Compile Include="Phases\IPhase.cs" />
+    <Compile Include="Phases\ExplorationPhase.cs" />
+    <Compile Include="Phases\ApproachTargetPhase.cs" />
+    <Compile Include="Phases\ClearAreaPhase.cs" />
+    <Compile Include="Phases\CaptureBeastPhase.cs" />
+    <Compile Include="Phases\OpenCachePhase.cs" />
+    <Compile Include="Phases\CombatPhase.cs" />
+    <Compile Include="Phases\LootingPhase.cs" />
+    <Compile Include="Phases\ExitPhase.cs" />
+    <Compile Include="Phases\ExitandStashPhase.cs" />
+    <Compile Include="Phases\ToHideoutPhase.cs" />
+    <Compile Include="Phases\OpenMapPhase.cs" />
+    <Compile Include="Phases\Killbossphase.cs" />
+    <Compile Include="Phases\EmergencyRecoveryPhase.cs" />
+    <Compile Include="Phases\ComprehensiveFarmingPhase.cs" />
+    <Compile Include="Phases\PreparationPhase.cs" />
+    <Compile Include="Configuration\BeastRoutineSettings.cs" />
+    <Compile Include="Configuration\BeastCaptureSettings.cs" />
+    <Compile Include="Configuration\CacheSettings.cs" />
+    <Compile Include="Configuration\HeistCacheSettings.cs" />
+    <Compile Include="Configuration\CombatSettings.cs" />
+    <Compile Include="Configuration\LootSettings.cs" />
+    <Compile Include="Configuration\ExitConditions.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="3rdparty.json" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

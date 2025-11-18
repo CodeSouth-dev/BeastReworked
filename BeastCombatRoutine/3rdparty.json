@@ -1,0 +1,10 @@
+{
+  "AssemblyName": "BeastCombatRoutine",
+  "FileList": [
+    "BeastCombatRoutine.cs",
+    "BeastCombatRoutineSettings.cs",
+    "BeastCombatRoutineGui.cs"
+  ],
+  "Dependencies": [],
+  "References": []
+}
