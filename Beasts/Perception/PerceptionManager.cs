@@ -157,7 +157,6 @@ namespace Beasts.Perception
                 ManaPercent = _playerPerception.ManaPercent,
                 EnergyShieldPercent = _playerPerception.EnergyShieldPercent,
                 InventoryFull = _playerPerception.InventoryFull,
-                AvailableFlasks = _playerPerception.AvailableFlasks,
                 PortalScrollCount = _playerPerception.PortalScrollCount,
                 HasRequiredBuffs = true,
 

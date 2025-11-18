@@ -32,7 +32,6 @@ namespace Beasts.Core
         public float EnergyShieldPercent { get; set; }
         public bool HasRequiredBuffs { get; set; }
         public bool InventoryFull { get; set; }
-        public int AvailableFlasks { get; set; }
         public int PortalScrollCount { get; set; }
         public bool IsInHideout { get; set; }
         public bool IsInMap { get; set; }
