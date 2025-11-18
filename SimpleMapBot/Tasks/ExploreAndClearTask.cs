@@ -12,6 +12,7 @@ using DreamPoeBot.Loki.Game;
 using DreamPoeBot.Loki.Game.GameData;
 using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
+using SimpleMapBot.Core;
 using SimpleMapBot.Services;
 using log4net;
 
@@ -85,14 +86,18 @@ namespace SimpleMapBot.Tasks
 
         private bool ShouldLeaveMap(SimpleMapBotSettings settings)
         {
-            // Time limit
+            // Update exploration percentage estimate
+            MapState.ExplorationPercent = Math.Min(100, (_exploredPositions.Count * 100) / 150);
+
+            // Time limit reached - mark complete
             if (_mapTimer.Elapsed.TotalSeconds >= settings.MaxMapTimeSeconds)
             {
                 Log.InfoFormat("[ExploreAndClearTask] Time limit reached ({0}s)", settings.MaxMapTimeSeconds);
+                MapState.MapComplete = true;
                 return true;
             }
 
-            // Inventory full
+            // Inventory full - leave but DON'T mark complete (will return)
             var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
             if (inventory != null && settings.ReturnWhenInventoryFull)
             {
@@ -102,19 +107,21 @@ namespace SimpleMapBot.Tasks
 
                 if (freeSlots <= 3)
                 {
-                    Log.Info("[ExploreAndClearTask] Inventory nearly full");
+                    Log.Info("[ExploreAndClearTask] Inventory nearly full - will return after banking");
+                    // Don't set MapComplete - we want to return!
                     return true;
                 }
             }
 
-            // Low health
+            // Low health - leave but DON'T mark complete
             if (LokiPoe.Me.HealthPercent < settings.ReturnHealthPercent)
             {
-                Log.InfoFormat("[ExploreAndClearTask] Low health ({0}%)", LokiPoe.Me.HealthPercent);
+                Log.InfoFormat("[ExploreAndClearTask] Low health ({0}%) - will return after healing", LokiPoe.Me.HealthPercent);
+                // Don't set MapComplete - we want to return!
                 return true;
             }
 
-            // Exploration target reached
+            // Exploration target reached - mark complete
             if (_exploredPositions.Count > 100) // Arbitrary threshold
             {
                 // Check if there are any nearby unexplored areas
@@ -137,7 +144,8 @@ namespace SimpleMapBot.Tasks
 
                 if (!hasNearbyUnexplored)
                 {
-                    Log.Info("[ExploreAndClearTask] No more areas to explore");
+                    Log.Info("[ExploreAndClearTask] No more areas to explore - map complete");
+                    MapState.MapComplete = true;
                     return true;
                 }
             }
