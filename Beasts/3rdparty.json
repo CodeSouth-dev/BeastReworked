@@ -25,7 +25,6 @@
     "Helpers/MetadataPathMatcher.cs",
     "Helpers/PhaseConditionHelpers.cs",
     "Core/GameConstants.cs",
-    "Models/FlaskCounts.cs",
     "Phases/IPhase.cs",
     "Phases/ExplorationPhase.cs",
     "Phases/ApproachTargetPhase.cs",

@@ -98,7 +98,6 @@
     <Compile Include="Helpers\MetadataPathMatcher.cs" />
     <Compile Include="Helpers\PhaseConditionHelpers.cs" />
     <Compile Include="Core\GameConstants.cs" />
-    <Compile Include="Models\FlaskCounts.cs" />
     <Compile Include="Phases\IPhase.cs" />
     <Compile Include="Phases\ExplorationPhase.cs" />
     <Compile Include="Phases\ApproachTargetPhase.cs" />
