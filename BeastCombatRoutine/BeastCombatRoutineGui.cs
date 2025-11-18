@@ -21,6 +21,11 @@ namespace BeastCombatRoutine
         private ComboBox BuffSlot2Combo;
         private ComboBox BuffSlot3Combo;
 
+        // Aura Skill ComboBoxes
+        private ComboBox AuraSlot1Combo;
+        private ComboBox AuraSlot2Combo;
+        private ComboBox AuraSlot3Combo;
+
         // Range TextBoxes
         private TextBox CombatRangeBox;
         private TextBox MaxMeleeRangeBox;
@@ -31,6 +36,7 @@ namespace BeastCombatRoutine
         private CheckBox AlwaysAttackInPlaceCheck;
         private CheckBox EnableZoomModeCheck;
         private CheckBox AutoDetectSkillsCheck;
+        private CheckBox EnableAuraActivationCheck;
 
         private Button SaveButton;
 
@@ -69,6 +75,9 @@ namespace BeastCombatRoutine
 
             // Buff Skills Group
             mainPanel.Children.Add(CreateBuffSkillsGroup());
+
+            // Aura Skills Group
+            mainPanel.Children.Add(CreateAuraSkillsGroup());
 
             // Combat Settings Group
             mainPanel.Children.Add(CreateCombatSettingsGroup());
@@ -146,6 +155,50 @@ namespace BeastCombatRoutine
             // Buff Slot 3
             panel.Children.Add(CreateSkillRow("Buff Slot 3:", out BuffSlot3Combo,
                 "Third buff skill"));
+
+            group.Content = panel;
+            return group;
+        }
+
+        private GroupBox CreateAuraSkillsGroup()
+        {
+            var group = new GroupBox
+            {
+                Header = "Aura Skills (Always-On)",
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+
+            var panel = new StackPanel { Margin = new Thickness(5) };
+
+            // Info text
+            panel.Children.Add(new TextBlock
+            {
+                Text = "For skills like Righteous Fire that need to stay active throughout maps",
+                FontStyle = FontStyles.Italic,
+                Foreground = System.Windows.Media.Brushes.DarkBlue,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+
+            // Enable Aura Activation
+            EnableAuraActivationCheck = new CheckBox
+            {
+                Content = "Enable Automatic Aura Activation",
+                Margin = new Thickness(0, 0, 0, 10),
+                ToolTip = "Auto-activate auras when entering combat areas (not town/hideout)"
+            };
+            panel.Children.Add(EnableAuraActivationCheck);
+
+            // Aura Slot 1
+            panel.Children.Add(CreateSkillRow("Aura Slot 1 (e.g. RF):", out AuraSlot1Combo,
+                "First aura skill (Righteous Fire, Aspects, etc - NOT Heralds)"));
+
+            // Aura Slot 2
+            panel.Children.Add(CreateSkillRow("Aura Slot 2:", out AuraSlot2Combo,
+                "Second aura skill"));
+
+            // Aura Slot 3
+            panel.Children.Add(CreateSkillRow("Aura Slot 3:", out AuraSlot3Combo,
+                "Third aura skill"));
 
             group.Content = panel;
             return group;
@@ -339,6 +392,12 @@ namespace BeastCombatRoutine
             BuffSlot2Combo.SelectedItem = BeastCombatRoutineSettings.SlotToKeybind(settings.BuffSlot2);
             BuffSlot3Combo.SelectedItem = BeastCombatRoutineSettings.SlotToKeybind(settings.BuffSlot3);
 
+            // Aura Skills - Convert slot numbers to keybind names
+            AuraSlot1Combo.SelectedItem = BeastCombatRoutineSettings.SlotToKeybind(settings.AuraSlot1);
+            AuraSlot2Combo.SelectedItem = BeastCombatRoutineSettings.SlotToKeybind(settings.AuraSlot2);
+            AuraSlot3Combo.SelectedItem = BeastCombatRoutineSettings.SlotToKeybind(settings.AuraSlot3);
+            EnableAuraActivationCheck.IsChecked = settings.EnableAuraActivation;
+
             // Combat Settings
             CombatRangeBox.Text = settings.CombatRange.ToString();
             MaxMeleeRangeBox.Text = settings.MaxMeleeRange.ToString();
@@ -388,6 +447,21 @@ namespace BeastCombatRoutine
                 var buff3 = BuffSlot3Combo.SelectedItem as string ?? "None";
                 settings.BuffSlot3 = BeastCombatRoutineSettings.KeybindToSlot.ContainsKey(buff3)
                     ? BeastCombatRoutineSettings.KeybindToSlot[buff3] : -1;
+
+                // Save Aura Skills - Convert keybind names to slot numbers
+                var aura1 = AuraSlot1Combo.SelectedItem as string ?? "None";
+                settings.AuraSlot1 = BeastCombatRoutineSettings.KeybindToSlot.ContainsKey(aura1)
+                    ? BeastCombatRoutineSettings.KeybindToSlot[aura1] : -1;
+
+                var aura2 = AuraSlot2Combo.SelectedItem as string ?? "None";
+                settings.AuraSlot2 = BeastCombatRoutineSettings.KeybindToSlot.ContainsKey(aura2)
+                    ? BeastCombatRoutineSettings.KeybindToSlot[aura2] : -1;
+
+                var aura3 = AuraSlot3Combo.SelectedItem as string ?? "None";
+                settings.AuraSlot3 = BeastCombatRoutineSettings.KeybindToSlot.ContainsKey(aura3)
+                    ? BeastCombatRoutineSettings.KeybindToSlot[aura3] : -1;
+
+                settings.EnableAuraActivation = EnableAuraActivationCheck.IsChecked ?? true;
 
                 // Save Combat Settings
                 if (int.TryParse(CombatRangeBox.Text, out int combatRange))

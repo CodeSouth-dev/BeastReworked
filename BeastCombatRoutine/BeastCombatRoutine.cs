@@ -25,8 +25,10 @@ namespace BeastCombatRoutine
         private int _leashRange = 40;
         private DateTime _lastSkillUse = DateTime.MinValue;
         private DateTime _lastBuffCheck = DateTime.MinValue;
+        private DateTime _lastAuraCheck = DateTime.MinValue;
         private const int MIN_SKILL_DELAY_MS = 50; // Minimum delay between skill uses
         private const int BUFF_CHECK_INTERVAL_MS = 5000; // Check buffs every 5 seconds
+        private const int AURA_CHECK_INTERVAL_MS = 2000; // Check auras every 2 seconds
 
         // Context awareness - track when we should engage in combat
         private bool _shouldEngage = false;
@@ -36,9 +38,9 @@ namespace BeastCombatRoutine
         private BeastCombatRoutineGui _gui;
 
         public string Name => "BeastCombatRoutine";
-        public string Description => "Zoom Mode: Only fights near beasts/caches. Auto skill detection. Smart combat.";
+        public string Description => "Zoom Mode: Only fights near beasts/caches. Auto skill detection. Smart combat. Aura activation.";
         public string Author => "YourName";
-        public string Version => "1.0.1";
+        public string Version => "1.1.0";
         public JsonSettings Settings => BeastCombatRoutineSettings.Instance;
         public UserControl Control => _gui ?? (_gui = new BeastCombatRoutineGui());
 
@@ -59,7 +61,28 @@ namespace BeastCombatRoutine
             LokiPoe.ProcessHookManager.ClearAllKeyStates();
             _shouldEngage = false;
         }
-        public void Tick() { }
+        public void Tick()
+        {
+            // Check and activate auras periodically
+            if (!LokiPoe.IsInGame)
+                return;
+
+            var settings = BeastCombatRoutineSettings.Instance;
+            if (!settings.EnableAuraActivation)
+                return;
+
+            // Only activate auras in combat areas (not town/hideout)
+            var cwa = LokiPoe.CurrentWorldArea;
+            if (cwa.IsTown || cwa.IsHideoutArea)
+                return;
+
+            // Check auras every 2 seconds
+            if ((DateTime.UtcNow - _lastAuraCheck).TotalMilliseconds > AURA_CHECK_INTERVAL_MS)
+            {
+                ActivateAuras();
+                _lastAuraCheck = DateTime.UtcNow;
+            }
+        }
 
         public async Task<LogicResult> Logic(Logic logic)
         {
@@ -191,6 +214,44 @@ namespace BeastCombatRoutine
                     {
                         Log.InfoFormat("[BeastCombatRoutine] Activated buff: {0}", buffName);
                         await Coroutine.Sleep(100); // Brief delay between buffs
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Activate auras (toggle skills like Righteous Fire, Aspects)
+        /// These need to be reactivated when entering maps
+        /// Note: Heralds are permanent in current PoE and don't need reactivation
+        /// </summary>
+        private void ActivateAuras()
+        {
+            var settings = BeastCombatRoutineSettings.Instance;
+            var auraSlots = new[] { settings.AuraSlot1, settings.AuraSlot2, settings.AuraSlot3 };
+
+            foreach (var slot in auraSlots)
+            {
+                if (slot == -1) continue;
+
+                var skill = LokiPoe.InGameState.SkillBarHud.Slot(slot);
+                if (skill == null) continue;
+
+                // Check if aura is already active
+                var auraName = skill.Name;
+                if (LokiPoe.Me.Auras.Any(a => a.Name == auraName))
+                    continue;
+
+                // Try to activate aura
+                if (skill.CanUse())
+                {
+                    var err = LokiPoe.InGameState.SkillBarHud.Use(slot, false, false);
+                    if (err == LokiPoe.InGameState.UseResult.None)
+                    {
+                        Log.InfoFormat("[BeastCombatRoutine] Activated aura: {0}", auraName);
+                    }
+                    else
+                    {
+                        Log.WarnFormat("[BeastCombatRoutine] Failed to activate aura {0}: {1}", auraName, err);
                     }
                 }
             }
