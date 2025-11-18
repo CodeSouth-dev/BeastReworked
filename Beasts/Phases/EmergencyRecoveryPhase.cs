@@ -190,12 +190,10 @@ namespace Beasts.Phases
 
         private bool DetectCriticalHealth(GameContext context)
         {
-            // Critical health without usable life flasks or energy shield
-            bool hasLifeFlasks = context.Player.HasLifeFlasks;
-
+            // Critical health without energy shield
+            // Note: BeastCombatRoutine handles flask usage automatically
             return context.Player.HealthPercent < CRITICAL_HEALTH_THRESHOLD &&
-                   context.Player.EnergyShieldPercent < 5f &&
-                   !hasLifeFlasks;
+                   context.Player.EnergyShieldPercent < 5f;
         }
 
         private bool DetectDisconnection()
