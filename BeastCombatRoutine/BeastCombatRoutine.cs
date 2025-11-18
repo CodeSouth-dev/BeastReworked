@@ -152,7 +152,6 @@ namespace BeastCombatRoutine
 
             // Use skill on target
             var targetPos = target.Position;
-            var settings = BeastCombatRoutineSettings.Instance;
             var err = LokiPoe.InGameState.SkillBarHud.UseAt(skillSlot, settings.AlwaysAttackInPlace, targetPos);
 
             if (err == LokiPoe.InGameState.UseResult.None)
@@ -518,10 +517,7 @@ namespace BeastCombatRoutine
         {
             try
             {
-                var flaskHud = LokiPoe.InGameState.QuickFlaskHud;
-                if (flaskHud == null) return false;
-
-                var flasks = flaskHud.InventoryControl.Inventory.Items;
+                var flasks = LokiPoe.InGameState.QuickFlaskHud.InventoryControl.Inventory.Items;
                 
                 // Find best life flask
                 Item bestFlask = null;
@@ -553,10 +549,7 @@ namespace BeastCombatRoutine
         {
             try
             {
-                var flaskHud = LokiPoe.InGameState.QuickFlaskHud;
-                if (flaskHud == null) return false;
-
-                var flasks = flaskHud.InventoryControl.Inventory.Items;
+                var flasks = LokiPoe.InGameState.QuickFlaskHud.InventoryControl.Inventory.Items;
                 
                 // Find best mana flask
                 Item bestFlask = null;
@@ -610,10 +603,7 @@ namespace BeastCombatRoutine
         {
             try
             {
-                var flaskHud = LokiPoe.InGameState.QuickFlaskHud;
-                if (flaskHud == null) return false;
-
-                var flask = flaskHud.InventoryControl.Inventory.Items
+                var flask = LokiPoe.InGameState.QuickFlaskHud.InventoryControl.Inventory.Items
                     .FirstOrDefault(f => f.CanUse && (f.Name == flaskName || f.FullName == flaskName));
 
                 return UseFlask(flask);
