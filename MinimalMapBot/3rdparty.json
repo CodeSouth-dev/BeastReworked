@@ -1,0 +1,8 @@
+{
+  "AssemblyName": "MinimalMapBot",
+  "FileList": [
+    "MinimalMapBot.cs"
+  ],
+  "Dependencies": [],
+  "References": []
+}
