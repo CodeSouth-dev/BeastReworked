@@ -1,9 +1,12 @@
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using DreamPoeBot.BotFramework;
 using DreamPoeBot.Loki.Bot;
 using DreamPoeBot.Loki.Common;
+using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
+using DreamPoeBot.Loki.Game.Objects;
 using log4net;
 
 namespace MinimalMapBot
@@ -102,6 +105,51 @@ namespace MinimalMapBot
                 Log.InfoFormat("[MinimalMapBot] Tick {0} - Area: {1}, Pos: {2}",
                     _tickCount, area?.Name ?? "Unknown", pos);
             }
+
+            // Try to loot nearby items
+            TryLootNearbyItems();
+        }
+
+        private async void TryLootNearbyItems()
+        {
+            // Find nearby valuable loot (currency, maps, divination cards)
+            var loot = LokiPoe.ObjectManager.GetObjectsByType<WorldItem>()
+                .Where(wi => wi != null && wi.IsValid &&
+                           wi.Distance < 50 &&
+                           IsItemValuable(wi.Item))
+                .OrderBy(wi => wi.Distance)
+                .FirstOrDefault();
+
+            if (loot == null)
+                return;
+
+            Log.InfoFormat("[MinimalMapBot] Found loot: {0} at {1:F1}m", loot.Item?.Name ?? "Unknown", loot.Distance);
+
+            // Move to loot if too far (BeastMover handles the actual movement)
+            if (loot.Distance > 10)
+            {
+                PlayerMoverManager.Current.MoveTowards(loot.Position);
+                await Coroutine.Sleep(50);
+                return;
+            }
+
+            // Pick up the item
+            if (await Coroutines.InteractWith(loot))
+            {
+                Log.InfoFormat("[MinimalMapBot] Looted: {0}", loot.Item?.Name ?? "Unknown");
+                await Coroutine.Sleep(100);
+            }
+        }
+
+        private bool IsItemValuable(Item item)
+        {
+            if (item == null)
+                return false;
+
+            // Pick up currency, maps, and divination cards
+            return item.Class == "Currency" ||
+                   item.Class == "Maps" ||
+                   item.Class == "Divination Card";
         }
         #endregion
     }
