@@ -6,6 +6,7 @@ using DreamPoeBot.Loki.Bot;
 using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
+using DreamPoeBot.Loki.Game.GameData;
 using DreamPoeBot.Loki.Game.Objects;
 using log4net;
 
@@ -59,6 +60,7 @@ namespace SimpleMapBot.Core
         #region ILogicProvider
         public async Task<LogicResult> Logic(Logic logic)
         {
+            await Task.CompletedTask;
             return LogicResult.Unprovided;
         }
         #endregion
@@ -275,21 +277,24 @@ namespace SimpleMapBot.Core
 
             // Place map in device
             Log.InfoFormat("[SimpleMapBot] Placing map: {0}", map.Name);
-            var inventory = LokiPoe.InGameState.InventoryUi.InventoryControl_Main;
-            if (!inventory.UseItem(map.LocalId))
+            var deviceControl = LokiPoe.InGameState.MapDeviceUi.InventoryControl;
+            var placeResult = deviceControl.FastMove(map.LocalId);
+
+            if (placeResult != FastMoveResult.None)
             {
-                Log.Warn("[SimpleMapBot] Failed to use map item");
+                Log.WarnFormat("[SimpleMapBot] Failed to place map: {0}", placeResult);
                 return;
             }
 
-            await Coroutine.Sleep(300);
+            await Coroutine.Sleep(500);
 
             // Activate device
             Log.Info("[SimpleMapBot] Activating map device");
-            var mapDeviceUi = LokiPoe.InGameState.MapDeviceUi;
-            if (!mapDeviceUi.Activate())
+            var activateResult = LokiPoe.InGameState.MapDeviceUi.Activate();
+
+            if (activateResult != LokiPoe.InGameState.ActivateResult.None)
             {
-                Log.Warn("[SimpleMapBot] Failed to activate map device");
+                Log.WarnFormat("[SimpleMapBot] Failed to activate map device: {0}", activateResult);
                 return;
             }
 
@@ -345,12 +350,51 @@ namespace SimpleMapBot.Core
             if (inventory == null)
                 return false;
 
-            // Count free slots
-            int totalSlots = inventory.Width * inventory.Height;
-            int usedSlots = inventory.AvailableItems.Count;
-            int freeSlots = totalSlots - usedSlots;
+            // Standard PoE inventory: 12 columns x 5 rows = 60 slots
+            const int INVENTORY_COLS = 12;
+            const int INVENTORY_ROWS = 5;
+            bool[,] occupiedSlots = new bool[INVENTORY_COLS, INVENTORY_ROWS];
 
-            return freeSlots <= 5; // Return if 5 or fewer slots available
+            // Mark occupied slots
+            foreach (var item in inventory.Items)
+            {
+                if (item == null || !item.IsValid)
+                    continue;
+
+                int x = (int)item.LocationTopLeft.X;
+                int y = (int)item.LocationTopLeft.Y;
+                int width = (int)item.Size.X;
+                int height = (int)item.Size.Y;
+
+                // Mark all slots this item occupies
+                for (int dx = 0; dx < width; dx++)
+                {
+                    for (int dy = 0; dy < height; dy++)
+                    {
+                        int slotX = x + dx;
+                        int slotY = y + dy;
+
+                        if (slotX < INVENTORY_COLS && slotY < INVENTORY_ROWS)
+                        {
+                            occupiedSlots[slotX, slotY] = true;
+                        }
+                    }
+                }
+            }
+
+            // Count free slots
+            int freeSlots = 0;
+            for (int x = 0; x < INVENTORY_COLS; x++)
+            {
+                for (int y = 0; y < INVENTORY_ROWS; y++)
+                {
+                    if (!occupiedSlots[x, y])
+                        freeSlots++;
+                }
+            }
+
+            // Return if 5 or fewer slots available
+            return freeSlots <= 5;
         }
 
         private async void TryReturnToHideout()
@@ -430,7 +474,7 @@ namespace SimpleMapBot.Core
 
             // Check if we have items to stash
             var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
-            if (inventory == null || inventory.AvailableItems.Count == 0)
+            if (inventory == null || inventory.Items.Count == 0)
                 return;
 
             _isProcessingStash = true;
@@ -483,17 +527,18 @@ namespace SimpleMapBot.Core
 
                 // Deposit all items
                 Log.Info("[SimpleMapBot] Depositing items to stash");
-                var itemsToStash = inventory.AvailableItems.ToList();
+                var itemsToStash = inventory.Items.ToList();
 
                 foreach (var item in itemsToStash)
                 {
                     if (item == null || item.Class == "Maps") // Don't stash maps
                         continue;
 
-                    var stashUi = LokiPoe.InGameState.StashUi;
-                    var err = stashUi.InventoryControl.FastMove(item.LocalId);
+                    LokiPoe.ProcessHookManager.ClearAllKeyStates();
 
-                    if (err != LokiPoe.InGameState.FastMoveResult.None)
+                    var err = LokiPoe.InGameState.InventoryUi.InventoryControl_Main.FastMove(item.LocalId);
+
+                    if (err != FastMoveResult.None)
                     {
                         Log.WarnFormat("[SimpleMapBot] Failed to stash item: {0} (error: {1})", item.Name, err);
                     }
