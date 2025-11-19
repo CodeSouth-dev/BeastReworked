@@ -24,6 +24,9 @@ namespace SimpleMapBot.Core
         private static readonly ILog Log = Logger.GetLoggerInstanceForType();
         private SimpleMapBotGui _gui;
 
+        // Coroutine for bot loop
+        private Coroutine _coroutine;
+
         // State tracking
         private MapBotState _currentState = MapBotState.Idle;
         private int _tickCount = 0;
@@ -139,6 +142,9 @@ namespace SimpleMapBot.Core
                 Log.Info("[SimpleMapBot] Running with 0 scarabs (none configured)");
             }
 
+            // Reset coroutine
+            _coroutine = null;
+
             Log.Info("=====================================================");
             Log.Info("[SimpleMapBot] Startup complete - ready to run maps!");
             Log.Info("[SimpleMapBot] Workflow: Stash \u2192 Map Device \u2192 Portal \u2192 Loot \u2192 Stash");
@@ -150,65 +156,99 @@ namespace SimpleMapBot.Core
             Log.Info("[SimpleMapBot] Bot stopped!");
             _currentState = MapBotState.Idle;
             _stateAttempts = 0;
+
+            // Cleanup coroutine
+            if (_coroutine != null)
+            {
+                _coroutine.Dispose();
+                _coroutine = null;
+            }
         }
         #endregion
 
         #region ITickEvents
         public void Tick()
         {
-            // Called every tick - keep minimal
-        }
-        #endregion
-
-        #region IBot
-        public void Execute()
-        {
-            // Log first execution
-            if (_tickCount == 0)
+            // Initialize coroutine if needed
+            if (_coroutine == null)
             {
-                Log.Info("[SimpleMapBot] *** Execute() called - bot is running! ***");
+                _coroutine = new Coroutine(() => MainCoroutine());
             }
 
-            _tickCount++;
-
-            // Main bot logic
-            if (!LokiPoe.IsInGame)
+            // Check if coroutine finished
+            if (_coroutine.IsFinished)
             {
-                if (_tickCount % 200 == 0)
-                {
-                    Log.Info("[SimpleMapBot] Waiting for game...");
-                }
+                Log.Debug("[SimpleMapBot] Coroutine finished");
+                BotManager.Stop();
                 return;
             }
 
-            var cwa = LokiPoe.CurrentWorldArea;
+            // Execute coroutine
+            try
+            {
+                _coroutine.Resume();
+            }
+            catch
+            {
+                var c = _coroutine;
+                _coroutine = null;
+                c.Dispose();
+                throw;
+            }
+        }
+        #endregion
 
-            // Log status every 3 seconds
-            if (_tickCount % 100 == 0)
-            {
-                Log.InfoFormat("[SimpleMapBot] State: {0}, Area: {1}, Tick: {2}",
-                    _currentState, cwa?.Name ?? "Unknown", _tickCount);
-            }
+        #region Main Coroutine
+        private async Task MainCoroutine()
+        {
+            Log.Info("[SimpleMapBot] *** MainCoroutine started - bot is running! ***");
 
-            // State machine
-            if (cwa != null && cwa.IsHideoutArea)
+            while (true)
             {
-                HandleHideoutState();
-            }
-            else if (cwa != null && !cwa.IsTown)
-            {
-                HandleMapState();
-            }
-            else if (cwa != null && cwa.IsTown)
-            {
+                _tickCount++;
+
+                // Wait for game
+                if (!LokiPoe.IsInGame)
+                {
+                    if (_tickCount % 200 == 0)
+                    {
+                        Log.Info("[SimpleMapBot] Waiting for game...");
+                    }
+                    await Coroutine.Sleep(100);
+                    continue;
+                }
+
+                var cwa = LokiPoe.CurrentWorldArea;
+
+                // Log status every 3 seconds
                 if (_tickCount % 100 == 0)
                 {
-                    Log.Info("[SimpleMapBot] In town - go to hideout to run maps");
+                    Log.InfoFormat("[SimpleMapBot] State: {0}, Area: {1}, Tick: {2}",
+                        _currentState, cwa?.Name ?? "Unknown", _tickCount);
                 }
+
+                // State machine
+                if (cwa != null && cwa.IsHideoutArea)
+                {
+                    await HandleHideoutState();
+                }
+                else if (cwa != null && !cwa.IsTown)
+                {
+                    await HandleMapState();
+                }
+                else if (cwa != null && cwa.IsTown)
+                {
+                    if (_tickCount % 100 == 0)
+                    {
+                        Log.Info("[SimpleMapBot] In town - go to hideout to run maps");
+                    }
+                }
+
+                await Coroutine.Sleep(30); // Small delay between iterations
             }
         }
 
-        private async void HandleHideoutState()
+        private async Task HandleHideoutState()
         {
             switch (_currentState)
             {
@@ -239,7 +279,7 @@ namespace SimpleMapBot.Core
             }
         }
 
-        private async void HandleMapState()
+        private async Task HandleMapState()
         {
             // In map - loot items
             if (IsInventoryFull())
