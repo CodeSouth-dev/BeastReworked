@@ -8,6 +8,7 @@ using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
 using DreamPoeBot.Loki.Game.GameData;
+using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
 using SimpleMapBot.Utilities;
 using log4net;
