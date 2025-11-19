@@ -157,6 +157,14 @@ namespace SimpleMapBot.Core
         #region IBot
         public void Execute()
         {
+            // Log first execution
+            if (_tickCount == 0)
+            {
+                Log.Info("[SimpleMapBot] *** Execute() called for the first time! Bot is running! ***");
+            }
+
+            _tickCount++;
+
             // Main bot logic
             if (!LokiPoe.IsInGame)
             {
@@ -164,31 +172,33 @@ namespace SimpleMapBot.Core
                 {
                     Log.Info("[SimpleMapBot] Waiting for game... (not in game yet)");
                 }
-                _tickCount++;
                 return;
             }
 
             var cwa = LokiPoe.CurrentWorldArea;
-            _tickCount++;
 
-            // Log status every 5 seconds (roughly 150 ticks at 30ms per tick)
-            if (_tickCount % 150 == 0)
+            // Log status every 2 seconds (roughly 60-70 ticks at 30ms per tick)
+            if (_tickCount % 60 == 0)
             {
                 var pos = LokiPoe.MyPosition;
                 var areaName = cwa?.Name ?? "Unknown";
                 var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
                 var itemCount = inventory?.Items?.Count ?? 0;
 
-                Log.InfoFormat("[SimpleMapBot] Status - Area: {0}, Items in inventory: {1}, Pos: {2}",
-                    areaName, itemCount, pos);
+                Log.InfoFormat("[SimpleMapBot] Execute tick {0} - Area: {1}, Items: {2}, Pos: {3}",
+                    _tickCount, areaName, itemCount, pos);
 
                 if (cwa != null && cwa.IsHideoutArea)
                 {
-                    Log.Info("[SimpleMapBot] In hideout - looking for map device or stash");
+                    Log.Info("[SimpleMapBot] In hideout - will handle map device or stash");
                 }
-                else if (cwa != null)
+                else if (cwa != null && !cwa.IsTown)
                 {
-                    Log.Info("[SimpleMapBot] In map - looting and clearing");
+                    Log.Info("[SimpleMapBot] In map - will try to loot");
+                }
+                else if (cwa != null && cwa.IsTown)
+                {
+                    Log.Info("[SimpleMapBot] In town - waiting (go to hideout to run maps)");
                 }
             }
 
