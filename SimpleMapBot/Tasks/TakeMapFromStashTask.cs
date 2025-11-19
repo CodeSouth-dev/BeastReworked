@@ -20,6 +20,8 @@ namespace SimpleMapBot.Tasks
 
         public string Name => "TakeMapFromStashTask";
         public string Description => "Takes a suitable map from stash";
+        public string Author => "SimpleMapBot";
+        public string Version => "1.0.0";
         public bool IsEnabled => true;
 
         public async Task<bool> Run()
@@ -215,5 +217,13 @@ namespace SimpleMapBot.Tasks
                     return false;
             }
         }
+
+        #region Unused interface members
+        public async Task<LogicResult> Logic(Logic logic) => LogicResult.Unprovided;
+        public MessageResult Message(Message message) => MessageResult.Unprocessed;
+        public void Start() { }
+        public void Stop() { }
+        public void Tick() { }
+        #endregion
     }
 }

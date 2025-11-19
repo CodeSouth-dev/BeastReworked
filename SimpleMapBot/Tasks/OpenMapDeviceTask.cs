@@ -20,6 +20,8 @@ namespace SimpleMapBot.Tasks
 
         public string Name => "OpenMapDeviceTask";
         public string Description => "Opens map device and places map";
+        public string Author => "SimpleMapBot";
+        public string Version => "1.0.0";
         public bool IsEnabled => true;
 
         public async Task<bool> Run()
@@ -238,5 +240,13 @@ namespace SimpleMapBot.Tasks
             ErrorManager.Reset(); // Reset error counter on success
             return true;
         }
+
+        #region Unused interface members
+        public async Task<LogicResult> Logic(Logic logic) => LogicResult.Unprovided;
+        public MessageResult Message(Message message) => MessageResult.Unprocessed;
+        public void Start() { }
+        public void Stop() { }
+        public void Tick() { }
+        #endregion
     }
 }

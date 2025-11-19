@@ -17,6 +17,8 @@ namespace SimpleMapBot.Tasks
 
         public string Name => "ReturnToHideoutTask";
         public string Description => "Returns to hideout when needed";
+        public string Author => "SimpleMapBot";
+        public string Version => "1.0.0";
         public bool IsEnabled => true;
 
         public async Task<bool> Run()
@@ -194,5 +196,13 @@ namespace SimpleMapBot.Tasks
             Log.Warn("[ReturnToHideoutTask] No portal skill or portal scrolls available for return portal!");
             return false;
         }
+
+        #region Unused interface members
+        public async Task<LogicResult> Logic(Logic logic) => LogicResult.Unprovided;
+        public MessageResult Message(Message message) => MessageResult.Unprocessed;
+        public void Start() { }
+        public void Stop() { }
+        public void Tick() { }
+        #endregion
     }
 }
