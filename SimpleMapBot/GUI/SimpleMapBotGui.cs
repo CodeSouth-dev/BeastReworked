@@ -121,17 +121,20 @@ namespace SimpleMapBot.GUI
             });
             infoPanel.Children.Add(new TextBlock
             {
-                Text = "This bot handles map running, looting, and stashing.\n\n" +
+                Text = "This bot handles complete map running workflow.\n\n" +
                        "Required Setup:\n" +
                        "1. Select BeastMover as PlayerMover\n" +
                        "2. Select BeastCombatRoutine as Routine\n" +
-                       "3. Put maps in your inventory that match your enabled maps below\n" +
+                       "3. Put maps and scarabs in your STASH (bot takes from stash)\n" +
                        "4. Start the bot while in your hideout\n\n" +
                        "What the bot does:\n" +
-                       "- Opens map device and places your maps + scarabs\n" +
-                       "- Enters the map portal\n" +
+                       "- Withdraws maps from stash (matches your enabled maps below)\n" +
+                       "- Navigates to map device\n" +
+                       "- Places map and scarabs in device\n" +
+                       "- Activates device and enters portal\n" +
                        "- Loots currency, maps, and divination cards\n" +
-                       "- Returns to hideout when inventory is full to stash items\n" +
+                       "- Returns to hideout when inventory is full\n" +
+                       "- Stashes loot and starts next map\n" +
                        "- BeastMover handles movement, BeastCombatRoutine handles combat",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 10)
