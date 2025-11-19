@@ -18,6 +18,7 @@ namespace MinimalMapBot
     {
         private static readonly ILog Log = Logger.GetLoggerInstanceForType();
         private int _tickCount = 0;
+        private bool _isProcessingMapDevice = false;
 
         #region IAuthored
         public string Name => "MinimalMapBot";
@@ -95,18 +96,26 @@ namespace MinimalMapBot
                 return;
             }
 
+            var cwa = LokiPoe.CurrentWorldArea;
+
             // Just log every 100 ticks
             _tickCount++;
 
             if (_tickCount % 100 == 0)
             {
-                var area = LokiPoe.CurrentWorldArea;
                 var pos = LokiPoe.MyPosition;
                 Log.InfoFormat("[MinimalMapBot] Tick {0} - Area: {1}, Pos: {2}",
-                    _tickCount, area?.Name ?? "Unknown", pos);
+                    _tickCount, cwa?.Name ?? "Unknown", pos);
             }
 
-            // Try to loot nearby items
+            // In hideout - handle map device
+            if (cwa != null && cwa.IsHideoutArea)
+            {
+                TryHandleMapDevice();
+                return;
+            }
+
+            // In map - try to loot nearby items
             TryLootNearbyItems();
         }
 
@@ -150,6 +159,165 @@ namespace MinimalMapBot
             return item.Class == "Currency" ||
                    item.Class == "Maps" ||
                    item.Class == "Divination Card";
+        }
+
+        private async void TryHandleMapDevice()
+        {
+            // Prevent re-entrant calls
+            if (_isProcessingMapDevice)
+                return;
+
+            _isProcessingMapDevice = true;
+
+            try
+            {
+                // Check if portal already exists (map device activated)
+                var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
+                    .FirstOrDefault(p => p.Distance < 100);
+
+                if (portal != null)
+                {
+                    Log.InfoFormat("[MinimalMapBot] Found portal, entering map");
+                    await EnterPortal(portal);
+                    return;
+                }
+
+                // Check if we have a map in inventory
+                var map = GetMapFromInventory();
+                if (map == null)
+                {
+                    Log.Warn("[MinimalMapBot] No map in inventory");
+                    return;
+                }
+
+                // Open map device and place map
+                await OpenAndActivateMapDevice(map);
+            }
+            finally
+            {
+                _isProcessingMapDevice = false;
+            }
+        }
+
+        private Item GetMapFromInventory()
+        {
+            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+            if (inventory == null)
+                return null;
+
+            return inventory.Items.FirstOrDefault(item =>
+                item != null && item.Class == "Maps");
+        }
+
+        private async Task OpenAndActivateMapDevice(Item map)
+        {
+            var device = LokiPoe.ObjectManager.MapDevice;
+            if (device == null)
+            {
+                Log.Warn("[MinimalMapBot] Map device not found");
+                return;
+            }
+
+            // Move closer if needed
+            if (device.Distance > 30)
+            {
+                Log.InfoFormat("[MinimalMapBot] Moving to map device (distance: {0:F1})", device.Distance);
+                PlayerMoverManager.Current.MoveTowards(device.Position);
+                await Coroutine.Sleep(100);
+                return;
+            }
+
+            // Open map device UI
+            if (!LokiPoe.InGameState.MapDeviceUi.IsOpened && !LokiPoe.InGameState.MasterDeviceUi.IsOpened)
+            {
+                Log.Info("[MinimalMapBot] Opening map device");
+                LokiPoe.ProcessHookManager.ClearAllKeyStates();
+
+                if (!await Coroutines.InteractWith(device))
+                {
+                    Log.Warn("[MinimalMapBot] Failed to interact with map device");
+                    return;
+                }
+
+                // Wait for UI to open
+                for (int i = 0; i < 30; i++)
+                {
+                    if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
+                        break;
+                    await Coroutine.Sleep(100);
+                }
+
+                if (!LokiPoe.InGameState.MapDeviceUi.IsOpened)
+                {
+                    Log.Warn("[MinimalMapBot] Map device UI did not open");
+                    return;
+                }
+            }
+
+            // Place map in device
+            Log.InfoFormat("[MinimalMapBot] Placing map: {0}", map.Name);
+            var inventory = LokiPoe.InGameState.InventoryUi.InventoryControl_Main;
+            if (!inventory.UseItem(map.LocalId))
+            {
+                Log.Warn("[MinimalMapBot] Failed to use map item");
+                return;
+            }
+
+            await Coroutine.Sleep(300);
+
+            // Activate device
+            Log.Info("[MinimalMapBot] Activating map device");
+            var mapDeviceUi = LokiPoe.InGameState.MapDeviceUi;
+            if (!mapDeviceUi.Activate())
+            {
+                Log.Warn("[MinimalMapBot] Failed to activate map device");
+                return;
+            }
+
+            await Coroutine.Sleep(500);
+
+            // Close UI
+            LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+            await Coroutine.Sleep(200);
+
+            Log.Info("[MinimalMapBot] Map device activated, waiting for portal");
+        }
+
+        private async Task EnterPortal(Portal portal)
+        {
+            // Move to portal if needed
+            if (portal.Distance > 20)
+            {
+                Log.InfoFormat("[MinimalMapBot] Moving to portal (distance: {0:F1})", portal.Distance);
+                PlayerMoverManager.Current.MoveTowards(portal.Position);
+                await Coroutine.Sleep(100);
+                return;
+            }
+
+            // Enter portal
+            Log.Info("[MinimalMapBot] Entering map portal");
+            LokiPoe.ProcessHookManager.ClearAllKeyStates();
+
+            if (!await Coroutines.InteractWith(portal))
+            {
+                Log.Warn("[MinimalMapBot] Failed to interact with portal");
+                return;
+            }
+
+            // Wait for zone transition
+            for (int i = 0; i < 50; i++)
+            {
+                await Coroutine.Sleep(100);
+
+                var newArea = LokiPoe.CurrentWorldArea;
+                if (newArea != null && !newArea.IsHideoutArea && !newArea.IsTown)
+                {
+                    Log.InfoFormat("[MinimalMapBot] Entered map: {0}", newArea.Name);
+                    return;
+                }
+            }
+
+            Log.Warn("[MinimalMapBot] Failed to enter map (timeout)");
         }
         #endregion
     }
