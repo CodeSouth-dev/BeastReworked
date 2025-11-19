@@ -35,6 +35,13 @@ namespace SimpleMapBot.GUI
         private ComboBox cmbScarab4;
         private ComboBox cmbScarab5;
 
+        // Scarab panels (for adding to UI)
+        private StackPanel scarab1Panel;
+        private StackPanel scarab2Panel;
+        private StackPanel scarab3Panel;
+        private StackPanel scarab4Panel;
+        private StackPanel scarab5Panel;
+
         // Save button
         private Button btnSave;
 
@@ -178,17 +185,17 @@ namespace SimpleMapBot.GUI
             var scarabGroup = CreateGroupBox("Scarab Selection");
             var scarabPanel = new StackPanel { Orientation = Orientation.Vertical };
 
-            cmbScarab1 = CreateScarabComboBox("Scarab Slot 1:");
-            cmbScarab2 = CreateScarabComboBox("Scarab Slot 2:");
-            cmbScarab3 = CreateScarabComboBox("Scarab Slot 3:");
-            cmbScarab4 = CreateScarabComboBox("Scarab Slot 4:");
-            cmbScarab5 = CreateScarabComboBox("Scarab Slot 5:");
+            scarab1Panel = CreateScarabComboBox("Scarab Slot 1:", out cmbScarab1);
+            scarab2Panel = CreateScarabComboBox("Scarab Slot 2:", out cmbScarab2);
+            scarab3Panel = CreateScarabComboBox("Scarab Slot 3:", out cmbScarab3);
+            scarab4Panel = CreateScarabComboBox("Scarab Slot 4:", out cmbScarab4);
+            scarab5Panel = CreateScarabComboBox("Scarab Slot 5:", out cmbScarab5);
 
-            scarabPanel.Children.Add(cmbScarab1);
-            scarabPanel.Children.Add(cmbScarab2);
-            scarabPanel.Children.Add(cmbScarab3);
-            scarabPanel.Children.Add(cmbScarab4);
-            scarabPanel.Children.Add(cmbScarab5);
+            scarabPanel.Children.Add(scarab1Panel);
+            scarabPanel.Children.Add(scarab2Panel);
+            scarabPanel.Children.Add(scarab3Panel);
+            scarabPanel.Children.Add(scarab4Panel);
+            scarabPanel.Children.Add(scarab5Panel);
 
             scarabGroup.Content = scarabPanel;
             mainPanel.Children.Add(scarabGroup);
@@ -231,7 +238,7 @@ namespace SimpleMapBot.GUI
             };
         }
 
-        private ComboBox CreateScarabComboBox(string label)
+        private StackPanel CreateScarabComboBox(string label, out ComboBox comboBox)
         {
             var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(5, 2, 5, 2) };
             panel.Children.Add(new TextBlock
@@ -241,7 +248,7 @@ namespace SimpleMapBot.GUI
                 VerticalAlignment = VerticalAlignment.Center
             });
 
-            var comboBox = new ComboBox
+            comboBox = new ComboBox
             {
                 Width = 200,
                 ItemsSource = AvailableScarabs
@@ -249,18 +256,7 @@ namespace SimpleMapBot.GUI
 
             panel.Children.Add(comboBox);
 
-            // Return a wrapper that contains the ComboBox as Tag so we can access it later
-            var wrapper = new ComboBox
-            {
-                Width = 0,
-                Height = 0,
-                Visibility = Visibility.Collapsed,
-                Tag = comboBox
-            };
-
-            // Actually, let's just return the comboBox directly and add the label inline
-            // Let me restructure this properly
-            return comboBox;
+            return panel;
         }
 
         private void LoadSettings()
