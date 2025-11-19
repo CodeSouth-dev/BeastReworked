@@ -326,7 +326,32 @@ namespace SimpleMapBot.Core
                 return;
             }
 
-            await Coroutine.Sleep(500);
+            await Coroutine.Sleep(300);
+
+            // Place scarabs if configured
+            var settings = SimpleMapBotSettings.Instance;
+            var selectedScarabs = settings.GetSelectedScarabs();
+
+            if (selectedScarabs.Count > 0)
+            {
+                Log.InfoFormat("[SimpleMapBot] Placing {0} scarabs in device", selectedScarabs.Count);
+
+                var scarabsPlaced = await PlaceScarabsInDevice(selectedScarabs);
+                if (scarabsPlaced > 0)
+                {
+                    Log.InfoFormat("[SimpleMapBot] Successfully placed {0}/{1} scarabs", scarabsPlaced, selectedScarabs.Count);
+                }
+                else if (selectedScarabs.Count > 0)
+                {
+                    Log.Warn("[SimpleMapBot] Failed to place any scarabs - continuing without them");
+                }
+
+                await Coroutine.Sleep(300);
+            }
+            else
+            {
+                Log.Debug("[SimpleMapBot] No scarabs configured, skipping scarab placement");
+            }
 
             // Activate device
             Log.Info("[SimpleMapBot] Activating map device");
@@ -345,6 +370,86 @@ namespace SimpleMapBot.Core
             await Coroutine.Sleep(200);
 
             Log.Info("[SimpleMapBot] Map device activated, waiting for portal");
+        }
+
+        /// <summary>
+        /// Find scarabs in inventory matching the configured names
+        /// </summary>
+        private System.Collections.Generic.List<Item> FindConfiguredScarabsInInventory(System.Collections.Generic.List<string> scarabNames)
+        {
+            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+            if (inventory == null)
+                return new System.Collections.Generic.List<Item>();
+
+            var foundScarabs = new System.Collections.Generic.List<Item>();
+
+            // For each configured scarab, find a matching item in inventory
+            foreach (var scarabName in scarabNames)
+            {
+                var scarab = inventory.Items.FirstOrDefault(item =>
+                    item != null &&
+                    item.IsValid &&
+                    item.Name != null &&
+                    item.Name.Equals(scarabName, System.StringComparison.OrdinalIgnoreCase));
+
+                if (scarab != null)
+                {
+                    foundScarabs.Add(scarab);
+                    Log.DebugFormat("[SimpleMapBot] Found scarab in inventory: {0}", scarab.Name);
+                }
+                else
+                {
+                    Log.WarnFormat("[SimpleMapBot] Configured scarab not found in inventory: {0}", scarabName);
+                }
+            }
+
+            return foundScarabs;
+        }
+
+        /// <summary>
+        /// Place scarabs in the map device
+        /// Returns the number of scarabs successfully placed
+        /// </summary>
+        private async Task<int> PlaceScarabsInDevice(System.Collections.Generic.List<string> scarabNames)
+        {
+            if (!LokiPoe.InGameState.MapDeviceUi.IsOpened)
+            {
+                Log.Warn("[SimpleMapBot] Cannot place scarabs - map device UI is not open");
+                return 0;
+            }
+
+            // Find configured scarabs in inventory
+            var scarabs = FindConfiguredScarabsInInventory(scarabNames);
+            if (scarabs.Count == 0)
+            {
+                Log.Warn("[SimpleMapBot] No configured scarabs found in inventory");
+                return 0;
+            }
+
+            // Place each scarab in the device
+            int placed = 0;
+            var deviceControl = LokiPoe.InGameState.MapDeviceUi.InventoryControl;
+
+            foreach (var scarab in scarabs)
+            {
+                LokiPoe.ProcessHookManager.ClearAllKeyStates();
+
+                Log.InfoFormat("[SimpleMapBot] Placing scarab: {0}", scarab.Name);
+                var result = deviceControl.FastMove(scarab.LocalId);
+
+                if (result == FastMoveResult.None)
+                {
+                    placed++;
+                    Log.DebugFormat("[SimpleMapBot] Placed scarab: {0}", scarab.Name);
+                    await Coroutine.Sleep(150); // Small delay between placements
+                }
+                else
+                {
+                    Log.WarnFormat("[SimpleMapBot] Failed to place scarab {0}: {1}", scarab.Name, result);
+                }
+            }
+
+            return placed;
         }
 
         private async Task EnterPortal(Portal portal)
