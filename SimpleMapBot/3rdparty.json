@@ -3,12 +3,8 @@
   "FileList": [
     "Core/SimpleMapBot.cs",
     "Configuration/SimpleMapBotSettings.cs",
-    "GUI/SimpleMapBotGui.xaml.cs"
+    "GUI/SimpleMapBotGui.cs"
   ],
   "Dependencies": [],
-  "References": [
-    "PresentationCore.dll",
-    "PresentationFramework.dll",
-    "WindowsBase.dll"
-  ]
+  "References": []
 }
