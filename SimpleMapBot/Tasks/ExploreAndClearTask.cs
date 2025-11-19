@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using DreamPoeBot.BotFramework;
+using DreamPoeBot.Common;
 using DreamPoeBot.Loki.Bot;
 using DreamPoeBot.Loki.Bot.Pathfinding;
 using DreamPoeBot.Loki.Common;
