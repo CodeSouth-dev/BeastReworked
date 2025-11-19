@@ -5,6 +5,8 @@
     "Configuration/SimpleMapBotSettings.cs",
     "GUI/SimpleMapBotGui.cs"
   ],
-  "Dependencies": [],
+  "Dependencies": [
+    "BeastRoutine"
+  ],
   "References": []
 }

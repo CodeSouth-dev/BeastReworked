@@ -10,27 +10,30 @@ using DreamPoeBot.Loki.Game.GameData;
 using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
 using SimpleMapBot.GUI;
+using Beasts.Services;
 using log4net;
 
 namespace SimpleMapBot.Core
 {
     /// <summary>
-    /// Simple map running bot - handles looting, map device, and stashing
+    /// Simple map running bot - handles map workflow, looting, and stashing
+    /// Requires BeastMover for movement and BeastCombatRoutine for combat
     /// </summary>
     public class SimpleMapBot : IBot
     {
         private static readonly ILog Log = Logger.GetLoggerInstanceForType();
-        private int _tickCount = 0;
-        private bool _isProcessingMapDevice = false;
-        private bool _isProcessingStash = false;
-        private bool _needsToReturnToMap = false;
         private SimpleMapBotGui _gui;
+
+        // State tracking
+        private MapBotState _currentState = MapBotState.Idle;
+        private int _tickCount = 0;
+        private int _stateAttempts = 0;
 
         #region IAuthored
         public string Name => "SimpleMapBot";
-        public string Description => "Simple map running bot - looting, map device, stashing";
+        public string Description => "Simple map running bot - stash to map device workflow, looting, stashing";
         public string Author => "BeastReworked";
-        public string Version => "1.0.0";
+        public string Version => "1.0.1";
         #endregion
 
         #region IBase
@@ -79,7 +82,7 @@ namespace SimpleMapBot.Core
         public void Start()
         {
             Log.Info("=====================================================");
-            Log.Info("[SimpleMapBot] Starting SimpleMapBot v1.0.0");
+            Log.Info("[SimpleMapBot] Starting SimpleMapBot v1.0.1");
             Log.Info("=====================================================");
 
             // Check required components
@@ -138,12 +141,15 @@ namespace SimpleMapBot.Core
 
             Log.Info("=====================================================");
             Log.Info("[SimpleMapBot] Startup complete - ready to run maps!");
+            Log.Info("[SimpleMapBot] Workflow: Stash \u2192 Map Device \u2192 Portal \u2192 Loot \u2192 Stash");
             Log.Info("=====================================================");
         }
 
         public void Stop()
         {
             Log.Info("[SimpleMapBot] Bot stopped!");
+            _currentState = MapBotState.Idle;
+            _stateAttempts = 0;
         }
         #endregion
 
@@ -157,76 +163,431 @@ namespace SimpleMapBot.Core
         #region IBot
         public void Execute()
         {
+            // Log first execution
+            if (_tickCount == 0)
+            {
+                Log.Info("[SimpleMapBot] *** Execute() called - bot is running! ***");
+            }
+
+            _tickCount++;
+
             // Main bot logic
             if (!LokiPoe.IsInGame)
             {
                 if (_tickCount % 200 == 0)
                 {
-                    Log.Info("[SimpleMapBot] Waiting for game... (not in game yet)");
+                    Log.Info("[SimpleMapBot] Waiting for game...");
                 }
-                _tickCount++;
                 return;
             }
 
             var cwa = LokiPoe.CurrentWorldArea;
-            _tickCount++;
 
-            // Log status every 5 seconds (roughly 150 ticks at 30ms per tick)
-            if (_tickCount % 150 == 0)
+            // Log status every 3 seconds
+            if (_tickCount % 100 == 0)
             {
-                var pos = LokiPoe.MyPosition;
-                var areaName = cwa?.Name ?? "Unknown";
-                var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
-                var itemCount = inventory?.Items?.Count ?? 0;
-
-                Log.InfoFormat("[SimpleMapBot] Status - Area: {0}, Items in inventory: {1}, Pos: {2}",
-                    areaName, itemCount, pos);
-
-                if (cwa != null && cwa.IsHideoutArea)
-                {
-                    Log.Info("[SimpleMapBot] In hideout - looking for map device or stash");
-                }
-                else if (cwa != null)
-                {
-                    Log.Info("[SimpleMapBot] In map - looting and clearing");
-                }
+                Log.InfoFormat("[SimpleMapBot] State: {0}, Area: {1}, Tick: {2}",
+                    _currentState, cwa?.Name ?? "Unknown", _tickCount);
             }
 
-            // In hideout - handle stashing or map device
+            // State machine
             if (cwa != null && cwa.IsHideoutArea)
             {
-                // If we need to return to map, find and enter the portal
-                if (_needsToReturnToMap)
+                HandleHideoutState();
+            }
+            else if (cwa != null && !cwa.IsTown)
+            {
+                HandleMapState();
+            }
+            else if (cwa != null && cwa.IsTown)
+            {
+                if (_tickCount % 100 == 0)
                 {
-                    if (_tickCount % 50 == 0)
+                    Log.Info("[SimpleMapBot] In town - go to hideout to run maps");
+                }
+            }
+        }
+
+        private async void HandleHideoutState()
+        {
+            switch (_currentState)
+            {
+                case MapBotState.Idle:
+                case MapBotState.NeedMap:
+                    await WithdrawMapFromStash();
+                    break;
+
+                case MapBotState.HasMap:
+                    await PlaceMapInDevice();
+                    break;
+
+                case MapBotState.MapInDevice:
+                    await PlaceScarabsInDevice();
+                    break;
+
+                case MapBotState.ReadyToActivate:
+                    await ActivateMapDevice();
+                    break;
+
+                case MapBotState.WaitingForPortal:
+                    await EnterPortal();
+                    break;
+
+                case MapBotState.NeedToStash:
+                    await StashItems();
+                    break;
+            }
+        }
+
+        private async void HandleMapState()
+        {
+            // In map - loot items
+            if (IsInventoryFull())
+            {
+                Log.Info("[SimpleMapBot] Inventory full, returning to hideout");
+                await ReturnToHideout();
+                _currentState = MapBotState.NeedToStash;
+                return;
+            }
+
+            await TryLootNearbyItems();
+        }
+
+        private async Task WithdrawMapFromStash()
+        {
+            // Check if we already have an enabled map
+            var mapInInventory = GetEnabledMapFromInventory();
+            if (mapInInventory != null)
+            {
+                Log.InfoFormat("[SimpleMapBot] Already have map: {0}", mapInInventory.Name);
+                _currentState = MapBotState.HasMap;
+                _stateAttempts = 0;
+                return;
+            }
+
+            // Find stash
+            var stash = LokiPoe.ObjectManager.Stash;
+            if (stash == null)
+            {
+                if (_tickCount % 100 == 0)
+                {
+                    Log.Warn("[SimpleMapBot] Stash not found in hideout");
+                }
+                return;
+            }
+
+            // Move to stash
+            if (stash.Distance > 15f)
+            {
+                if (_tickCount % 50 == 0)
+                {
+                    Log.InfoFormat("[SimpleMapBot] Moving to stash ({0:F1}m)", stash.Distance);
+                }
+                PlayerMoverManager.Current.MoveTowards(stash.Position);
+                await Coroutine.Sleep(100);
+                return;
+            }
+
+            // Open stash
+            if (!LokiPoe.InGameState.StashUi.IsOpened)
+            {
+                Log.Info("[SimpleMapBot] Opening stash to withdraw map");
+                LokiPoe.ProcessHookManager.ClearAllKeyStates();
+
+                if (!await Coroutines.InteractWith(stash))
+                {
+                    _stateAttempts++;
+                    if (_stateAttempts > 5)
                     {
-                        Log.Info("[SimpleMapBot] Need to return to map after stashing");
+                        Log.Error("[SimpleMapBot] Failed to open stash after 5 attempts");
+                        _stateAttempts = 0;
                     }
-                    TryReturnToMap();
                     return;
                 }
 
-                // Otherwise handle stash or map device
-                TryHandleStash();
-                TryHandleMapDevice();
+                await Coroutine.Sleep(500);
                 return;
             }
 
-            // In map - check inventory first, then loot
-            if (IsInventoryFull())
+            // Search for map in stash
+            var stashMap = await FindAndWithdrawMapFromStash();
+            if (stashMap)
             {
-                Log.Info("[SimpleMapBot] Inventory full, returning to hideout to stash");
-                TryReturnToHideout();
-                return;
-            }
+                Log.Info("[SimpleMapBot] Map withdrawn from stash");
 
-            // Try to loot nearby items
-            TryLootNearbyItems();
+                // Close stash
+                LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+                await Coroutine.Sleep(300);
+
+                _currentState = MapBotState.HasMap;
+                _stateAttempts = 0;
+            }
+            else
+            {
+                _stateAttempts++;
+                if (_stateAttempts > 3)
+                {
+                    Log.Error("[SimpleMapBot] ===== OUT OF MAPS =====");
+                    Log.Error("[SimpleMapBot] No enabled maps found in stash. Please restock!");
+                    _stateAttempts = 0;
+                }
+            }
         }
 
-        private async void TryLootNearbyItems()
+        private async Task<bool> FindAndWithdrawMapFromStash()
         {
-            // Find nearby valuable loot (currency, maps, divination cards)
+            var settings = SimpleMapBotSettings.Instance;
+            var tabControl = LokiPoe.InGameState.StashUi.TabControl;
+
+            if (tabControl == null)
+                return false;
+
+            // Search through stash tabs
+            for (int i = 0; i < 50; i++) // Check up to 50 tabs
+            {
+                if (tabControl.CurrentTabIndex != i)
+                {
+                    tabControl.SwitchToTabMouse(i);
+                    await Coroutine.Sleep(200);
+                }
+
+                var stashInventory = LokiPoe.InGameState.StashUi.InventoryControl?.Inventory;
+                if (stashInventory == null)
+                    continue;
+
+                // Find enabled maps in this tab
+                var maps = stashInventory.Items
+                    .Where(item => item != null && item.IsValid &&
+                                  item.Class == "Maps" &&
+                                  settings.IsMapEnabled(item.Name))
+                    .ToList();
+
+                if (maps.Any())
+                {
+                    var map = maps.First();
+                    Log.InfoFormat("[SimpleMapBot] Found map in stash tab {0}: {1}", i, map.Name);
+
+                    LokiPoe.ProcessHookManager.ClearAllKeyStates();
+                    var result = LokiPoe.InGameState.StashUi.InventoryControl.FastMove(map.LocalId);
+
+                    if (result == FastMoveResult.None)
+                    {
+                        await Coroutine.Sleep(200);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private async Task PlaceMapInDevice()
+        {
+            // Check if map already in device
+            if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
+            {
+                var deviceInv = LokiPoe.InGameState.MapDeviceUi.InventoryControl?.Inventory;
+                if (deviceInv?.Items?.Any(i => i != null && i.Class == "Maps") == true)
+                {
+                    Log.Info("[SimpleMapBot] Map already in device");
+                    _currentState = MapBotState.MapInDevice;
+                    _stateAttempts = 0;
+                    return;
+                }
+            }
+
+            // Open map device
+            if (!await MapDeviceService.OpenMapDevice())
+            {
+                if (_tickCount % 50 == 0)
+                {
+                    Log.Debug("[SimpleMapBot] Opening map device...");
+                }
+                return;
+            }
+
+            // Get map from inventory
+            var map = GetEnabledMapFromInventory();
+            if (map == null)
+            {
+                Log.Warn("[SimpleMapBot] No map in inventory");
+                _currentState = MapBotState.NeedMap;
+                return;
+            }
+
+            // Place map
+            Log.InfoFormat("[SimpleMapBot] Placing map: {0}", map.Name);
+            if (await MapDeviceService.PlaceItemInDevice(map))
+            {
+                _currentState = MapBotState.MapInDevice;
+                _stateAttempts = 0;
+                await Coroutine.Sleep(300);
+            }
+            else
+            {
+                _stateAttempts++;
+                if (_stateAttempts > 5)
+                {
+                    Log.Error("[SimpleMapBot] Failed to place map after 5 attempts");
+                    _stateAttempts = 0;
+                }
+            }
+        }
+
+        private async Task PlaceScarabsInDevice()
+        {
+            var selectedScarabs = SimpleMapBotSettings.Instance.GetSelectedScarabs();
+
+            if (selectedScarabs.Count == 0)
+            {
+                // No scarabs configured, skip to activation
+                _currentState = MapBotState.ReadyToActivate;
+                return;
+            }
+
+            // Find scarabs in inventory
+            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+            var scarabsToPlace = new System.Collections.Generic.List<Item>();
+
+            foreach (var scarabName in selectedScarabs)
+            {
+                var scarab = inventory?.Items.FirstOrDefault(i =>
+                    i != null && i.Name != null && i.Name.Equals(scarabName, System.StringComparison.OrdinalIgnoreCase));
+
+                if (scarab != null)
+                    scarabsToPlace.Add(scarab);
+            }
+
+            if (scarabsToPlace.Count == 0)
+            {
+                Log.Warn("[SimpleMapBot] No scarabs found in inventory, activating without scarabs");
+                _currentState = MapBotState.ReadyToActivate;
+                return;
+            }
+
+            // Place scarabs
+            Log.InfoFormat("[SimpleMapBot] Placing {0} scarabs", scarabsToPlace.Count);
+            foreach (var scarab in scarabsToPlace)
+            {
+                if (await MapDeviceService.PlaceItemInDevice(scarab))
+                {
+                    Log.DebugFormat("[SimpleMapBot] Placed scarab: {0}", scarab.Name);
+                    await Coroutine.Sleep(150);
+                }
+            }
+
+            _currentState = MapBotState.ReadyToActivate;
+            _stateAttempts = 0;
+        }
+
+        private async Task ActivateMapDevice()
+        {
+            Log.Info("[SimpleMapBot] Activating map device");
+
+            if (await MapDeviceService.ActivateMapDevice())
+            {
+                _currentState = MapBotState.WaitingForPortal;
+                _stateAttempts = 0;
+                await Coroutine.Sleep(500);
+            }
+            else
+            {
+                _stateAttempts++;
+                if (_stateAttempts > 5)
+                {
+                    Log.Error("[SimpleMapBot] Failed to activate device after 5 attempts");
+                    _stateAttempts = 0;
+                    _currentState = MapBotState.Idle;
+                }
+            }
+        }
+
+        private async Task EnterPortal()
+        {
+            var portal = MapDeviceService.FindMapPortal();
+
+            if (portal == null)
+            {
+                _stateAttempts++;
+                if (_stateAttempts > 30)
+                {
+                    Log.Error("[SimpleMapBot] Portal did not appear");
+                    _stateAttempts = 0;
+                    _currentState = MapBotState.Idle;
+                }
+                return;
+            }
+
+            // Move to portal
+            if (portal.Distance > 30f)
+            {
+                PlayerMoverManager.Current.MoveTowards(portal.Position);
+                await Coroutine.Sleep(100);
+                return;
+            }
+
+            // Enter portal
+            Log.Info("[SimpleMapBot] Entering map portal");
+            if (await PortalService.EnterPortal(portal))
+            {
+                _currentState = MapBotState.InMap;
+                _stateAttempts = 0;
+                await Coroutine.Sleep(2000);
+            }
+        }
+
+        private async Task StashItems()
+        {
+            var stash = LokiPoe.ObjectManager.Stash;
+            if (stash == null)
+                return;
+
+            // Move to stash
+            if (stash.Distance > 15f)
+            {
+                PlayerMoverManager.Current.MoveTowards(stash.Position);
+                await Coroutine.Sleep(100);
+                return;
+            }
+
+            // Open stash
+            if (!LokiPoe.InGameState.StashUi.IsOpened)
+            {
+                Log.Info("[SimpleMapBot] Opening stash to deposit items");
+                await Coroutines.InteractWith(stash);
+                await Coroutine.Sleep(500);
+                return;
+            }
+
+            // Stash all items except maps
+            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+            var itemsToStash = inventory?.Items.Where(i => i != null && i.Class != "Maps").ToList();
+
+            if (itemsToStash != null && itemsToStash.Any())
+            {
+                foreach (var item in itemsToStash)
+                {
+                    LokiPoe.ProcessHookManager.ClearAllKeyStates();
+                    var result = LokiPoe.InGameState.InventoryUi.InventoryControl_Main.FastMove(item.LocalId);
+
+                    if (result == FastMoveResult.None)
+                    {
+                        Log.InfoFormat("[SimpleMapBot] Stashed: {0}", item.Name);
+                        await Coroutine.Sleep(50);
+                    }
+                }
+            }
+
+            // Close stash
+            LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+            await Coroutine.Sleep(200);
+
+            Log.Info("[SimpleMapBot] Finished stashing, returning to map");
+            _currentState = MapBotState.Idle; // Will start new map cycle
+        }
+
+        private async Task TryLootNearbyItems()
+        {
             var loot = LokiPoe.ObjectManager.GetObjectsByType<WorldItem>()
                 .Where(wi => wi != null && wi.IsValid &&
                            wi.Distance < 50 &&
@@ -237,9 +598,7 @@ namespace SimpleMapBot.Core
             if (loot == null)
                 return;
 
-            Log.InfoFormat("[SimpleMapBot] Found loot: {0} at {1:F1}m", loot.Item?.Name ?? "Unknown", loot.Distance);
-
-            // Move to loot if too far (BeastMover handles the actual movement)
+            // Move to loot
             if (loot.Distance > 10)
             {
                 PlayerMoverManager.Current.MoveTowards(loot.Position);
@@ -247,7 +606,7 @@ namespace SimpleMapBot.Core
                 return;
             }
 
-            // Pick up the item
+            // Pick up
             if (await Coroutines.InteractWith(loot))
             {
                 Log.InfoFormat("[SimpleMapBot] Looted: {0}", loot.Item?.Name ?? "Unknown");
@@ -260,317 +619,19 @@ namespace SimpleMapBot.Core
             if (item == null)
                 return false;
 
-            // Pick up currency, maps, and divination cards
             return item.Class == "Currency" ||
                    item.Class == "Maps" ||
                    item.Class == "Divination Card";
         }
 
-        private async void TryHandleMapDevice()
-        {
-            // Prevent re-entrant calls
-            if (_isProcessingMapDevice)
-                return;
-
-            _isProcessingMapDevice = true;
-
-            try
-            {
-                // Check if portal already exists (map device activated)
-                var portals = LokiPoe.ObjectManager.GetObjectsByType<Portal>();
-                var portal = portals.FirstOrDefault(p => p.Distance < 100);
-
-                if (portal != null)
-                {
-                    Log.InfoFormat("[SimpleMapBot] Found portal at {0:F1}m, entering map", portal.Distance);
-                    await EnterPortal(portal);
-                    return;
-                }
-
-                // Log when searching for map device
-                if (_tickCount % 100 == 0)
-                {
-                    Log.Debug("[SimpleMapBot] No portal found, checking for map in inventory");
-                }
-
-                // Check if we have a map in inventory
-                var map = GetMapFromInventory();
-                if (map == null)
-                {
-                    if (_tickCount % 200 == 0)
-                    {
-                        Log.Warn("[SimpleMapBot] No enabled map in inventory - waiting for maps");
-                        Log.Warn("[SimpleMapBot] Make sure you have maps that match your enabled map list!");
-                    }
-                    return;
-                }
-
-                // Open map device and place map
-                Log.InfoFormat("[SimpleMapBot] Found map to run: {0}", map.Name);
-                await OpenAndActivateMapDevice(map);
-            }
-            finally
-            {
-                _isProcessingMapDevice = false;
-            }
-        }
-
-        private Item GetMapFromInventory()
+        private Item GetEnabledMapFromInventory()
         {
             var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
-            if (inventory == null)
-            {
-                Log.Debug("[SimpleMapBot] Inventory is null");
-                return null;
-            }
-
             var settings = SimpleMapBotSettings.Instance;
 
-            // Count maps in inventory for logging
-            var allMaps = inventory.Items.Where(i => i != null && i.Class == "Maps").ToList();
-            if (allMaps.Count > 0 && _tickCount % 200 == 0)
-            {
-                Log.DebugFormat("[SimpleMapBot] Found {0} total maps in inventory", allMaps.Count);
-                foreach (var m in allMaps)
-                {
-                    var enabled = settings.IsMapEnabled(m.Name) ? "ENABLED" : "disabled";
-                    Log.DebugFormat("[SimpleMapBot]   - {0} ({1})", m.Name, enabled);
-                }
-            }
-
-            // Find first map that matches our enabled maps filter
-            return inventory.Items.FirstOrDefault(item =>
-            {
-                if (item == null || item.Class != "Maps")
-                    return false;
-
-                // Check if this map is enabled in settings
-                if (!settings.IsMapEnabled(item.Name))
-                {
-                    return false;
-                }
-
-                return true;
-            });
-        }
-
-        private async Task OpenAndActivateMapDevice(Item map)
-        {
-            var device = LokiPoe.ObjectManager.MapDevice;
-            if (device == null)
-            {
-                Log.Warn("[SimpleMapBot] Map device not found");
-                return;
-            }
-
-            // Move closer if needed
-            if (device.Distance > 30)
-            {
-                Log.InfoFormat("[SimpleMapBot] Moving to map device (distance: {0:F1})", device.Distance);
-                PlayerMoverManager.Current.MoveTowards(device.Position);
-                await Coroutine.Sleep(100);
-                return;
-            }
-
-            // Open map device UI
-            if (!LokiPoe.InGameState.MapDeviceUi.IsOpened && !LokiPoe.InGameState.MasterDeviceUi.IsOpened)
-            {
-                Log.Info("[SimpleMapBot] Opening map device");
-                LokiPoe.ProcessHookManager.ClearAllKeyStates();
-
-                if (!await Coroutines.InteractWith(device))
-                {
-                    Log.Warn("[SimpleMapBot] Failed to interact with map device");
-                    return;
-                }
-
-                // Wait for UI to open
-                for (int i = 0; i < 30; i++)
-                {
-                    if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
-                        break;
-                    await Coroutine.Sleep(100);
-                }
-
-                if (!LokiPoe.InGameState.MapDeviceUi.IsOpened)
-                {
-                    Log.Warn("[SimpleMapBot] Map device UI did not open");
-                    return;
-                }
-            }
-
-            // Place map in device
-            Log.InfoFormat("[SimpleMapBot] Placing map: {0}", map.Name);
-            var deviceControl = LokiPoe.InGameState.MapDeviceUi.InventoryControl;
-            var placeResult = deviceControl.FastMove(map.LocalId);
-
-            if (placeResult != FastMoveResult.None)
-            {
-                Log.WarnFormat("[SimpleMapBot] Failed to place map: {0}", placeResult);
-                return;
-            }
-
-            await Coroutine.Sleep(300);
-
-            // Place scarabs if configured
-            var settings = SimpleMapBotSettings.Instance;
-            var selectedScarabs = settings.GetSelectedScarabs();
-
-            if (selectedScarabs.Count > 0)
-            {
-                Log.InfoFormat("[SimpleMapBot] Placing {0} scarabs in device", selectedScarabs.Count);
-
-                var scarabsPlaced = await PlaceScarabsInDevice(selectedScarabs);
-                if (scarabsPlaced > 0)
-                {
-                    Log.InfoFormat("[SimpleMapBot] Successfully placed {0}/{1} scarabs", scarabsPlaced, selectedScarabs.Count);
-                }
-                else if (selectedScarabs.Count > 0)
-                {
-                    Log.Warn("[SimpleMapBot] Failed to place any scarabs - continuing without them");
-                }
-
-                await Coroutine.Sleep(300);
-            }
-            else
-            {
-                Log.Debug("[SimpleMapBot] No scarabs configured, skipping scarab placement");
-            }
-
-            // Activate device
-            Log.Info("[SimpleMapBot] Activating map device");
-            var activateResult = LokiPoe.InGameState.MapDeviceUi.Activate();
-
-            if (activateResult != LokiPoe.InGameState.ActivateResult.None)
-            {
-                Log.WarnFormat("[SimpleMapBot] Failed to activate map device: {0}", activateResult);
-                return;
-            }
-
-            await Coroutine.Sleep(500);
-
-            // Close UI
-            LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
-            await Coroutine.Sleep(200);
-
-            Log.Info("[SimpleMapBot] Map device activated, waiting for portal");
-        }
-
-        /// <summary>
-        /// Find scarabs in inventory matching the configured names
-        /// </summary>
-        private System.Collections.Generic.List<Item> FindConfiguredScarabsInInventory(System.Collections.Generic.List<string> scarabNames)
-        {
-            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
-            if (inventory == null)
-                return new System.Collections.Generic.List<Item>();
-
-            var foundScarabs = new System.Collections.Generic.List<Item>();
-
-            // For each configured scarab, find a matching item in inventory
-            foreach (var scarabName in scarabNames)
-            {
-                var scarab = inventory.Items.FirstOrDefault(item =>
-                    item != null &&
-                    item.IsValid &&
-                    item.Name != null &&
-                    item.Name.Equals(scarabName, System.StringComparison.OrdinalIgnoreCase));
-
-                if (scarab != null)
-                {
-                    foundScarabs.Add(scarab);
-                    Log.DebugFormat("[SimpleMapBot] Found scarab in inventory: {0}", scarab.Name);
-                }
-                else
-                {
-                    Log.WarnFormat("[SimpleMapBot] Configured scarab not found in inventory: {0}", scarabName);
-                }
-            }
-
-            return foundScarabs;
-        }
-
-        /// <summary>
-        /// Place scarabs in the map device
-        /// Returns the number of scarabs successfully placed
-        /// </summary>
-        private async Task<int> PlaceScarabsInDevice(System.Collections.Generic.List<string> scarabNames)
-        {
-            if (!LokiPoe.InGameState.MapDeviceUi.IsOpened)
-            {
-                Log.Warn("[SimpleMapBot] Cannot place scarabs - map device UI is not open");
-                return 0;
-            }
-
-            // Find configured scarabs in inventory
-            var scarabs = FindConfiguredScarabsInInventory(scarabNames);
-            if (scarabs.Count == 0)
-            {
-                Log.Warn("[SimpleMapBot] No configured scarabs found in inventory");
-                return 0;
-            }
-
-            // Place each scarab in the device
-            int placed = 0;
-            var deviceControl = LokiPoe.InGameState.MapDeviceUi.InventoryControl;
-
-            foreach (var scarab in scarabs)
-            {
-                LokiPoe.ProcessHookManager.ClearAllKeyStates();
-
-                Log.InfoFormat("[SimpleMapBot] Placing scarab: {0}", scarab.Name);
-                var result = deviceControl.FastMove(scarab.LocalId);
-
-                if (result == FastMoveResult.None)
-                {
-                    placed++;
-                    Log.DebugFormat("[SimpleMapBot] Placed scarab: {0}", scarab.Name);
-                    await Coroutine.Sleep(150); // Small delay between placements
-                }
-                else
-                {
-                    Log.WarnFormat("[SimpleMapBot] Failed to place scarab {0}: {1}", scarab.Name, result);
-                }
-            }
-
-            return placed;
-        }
-
-        private async Task EnterPortal(Portal portal)
-        {
-            // Move to portal if needed
-            if (portal.Distance > 20)
-            {
-                Log.InfoFormat("[SimpleMapBot] Moving to portal (distance: {0:F1})", portal.Distance);
-                PlayerMoverManager.Current.MoveTowards(portal.Position);
-                await Coroutine.Sleep(100);
-                return;
-            }
-
-            // Enter portal
-            Log.Info("[SimpleMapBot] Entering map portal");
-            LokiPoe.ProcessHookManager.ClearAllKeyStates();
-
-            if (!await Coroutines.InteractWith(portal))
-            {
-                Log.Warn("[SimpleMapBot] Failed to interact with portal");
-                return;
-            }
-
-            // Wait for zone transition
-            for (int i = 0; i < 50; i++)
-            {
-                await Coroutine.Sleep(100);
-
-                var newArea = LokiPoe.CurrentWorldArea;
-                if (newArea != null && !newArea.IsHideoutArea && !newArea.IsTown)
-                {
-                    Log.InfoFormat("[SimpleMapBot] Entered map: {0}", newArea.Name);
-                    return;
-                }
-            }
-
-            Log.Warn("[SimpleMapBot] Failed to enter map (timeout)");
+            return inventory?.Items.FirstOrDefault(item =>
+                item != null && item.Class == "Maps" &&
+                settings.IsMapEnabled(item.Name));
         }
 
         private bool IsInventoryFull()
@@ -579,12 +640,10 @@ namespace SimpleMapBot.Core
             if (inventory == null)
                 return false;
 
-            // Standard PoE inventory: 12 columns x 5 rows = 60 slots
             const int INVENTORY_COLS = 12;
             const int INVENTORY_ROWS = 5;
             bool[,] occupiedSlots = new bool[INVENTORY_COLS, INVENTORY_ROWS];
 
-            // Mark occupied slots
             foreach (var item in inventory.Items)
             {
                 if (item == null || !item.IsValid)
@@ -595,7 +654,6 @@ namespace SimpleMapBot.Core
                 int width = (int)item.Size.X;
                 int height = (int)item.Size.Y;
 
-                // Mark all slots this item occupies
                 for (int dx = 0; dx < width; dx++)
                 {
                     for (int dy = 0; dy < height; dy++)
@@ -611,7 +669,6 @@ namespace SimpleMapBot.Core
                 }
             }
 
-            // Count free slots
             int freeSlots = 0;
             for (int x = 0; x < INVENTORY_COLS; x++)
             {
@@ -622,22 +679,18 @@ namespace SimpleMapBot.Core
                 }
             }
 
-            // Return if 5 or fewer slots available
             return freeSlots <= 5;
         }
 
-        private async void TryReturnToHideout()
+        private async Task ReturnToHideout()
         {
-            // Use portal skill or scroll to return
             var portalSkill = LokiPoe.Me.AvailableSkills.FirstOrDefault(s => s.Name == "Portal");
             if (portalSkill != null && portalSkill.CanUse())
             {
-                Log.Info("[SimpleMapBot] Using portal skill to return to hideout");
-                var slot = portalSkill.Slot;
-                LokiPoe.InGameState.SkillBarHud.Use(slot, false, false);
+                Log.Info("[SimpleMapBot] Using portal to return to hideout");
+                LokiPoe.InGameState.SkillBarHud.Use(portalSkill.Slot, false, false);
                 await Coroutine.Sleep(500);
 
-                // Wait for portal to appear and enter it
                 for (int i = 0; i < 30; i++)
                 {
                     var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
@@ -645,151 +698,28 @@ namespace SimpleMapBot.Core
 
                     if (portal != null)
                     {
-                        LokiPoe.ProcessHookManager.ClearAllKeyStates();
                         if (await Coroutines.InteractWith(portal))
                         {
-                            _needsToReturnToMap = true;
-                            Log.Info("[SimpleMapBot] Returning to hideout to stash items");
-                            await Coroutine.Sleep(2000); // Wait for zone transition
+                            await Coroutine.Sleep(2000);
                             return;
                         }
                     }
                     await Coroutine.Sleep(100);
                 }
             }
-
-            Log.Warn("[SimpleMapBot] No portal skill available");
-        }
-
-        private async void TryReturnToMap()
-        {
-            // Find the map portal (not map device portal)
-            var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
-                .FirstOrDefault(p => p.Distance < 100 && !p.Metadata.Contains("MapDevice"));
-
-            if (portal == null)
-            {
-                Log.Warn("[SimpleMapBot] No return portal found, starting new map");
-                _needsToReturnToMap = false;
-                return;
-            }
-
-            // Move to portal if needed
-            if (portal.Distance > 20)
-            {
-                Log.InfoFormat("[SimpleMapBot] Moving to return portal (distance: {0:F1})", portal.Distance);
-                PlayerMoverManager.Current.MoveTowards(portal.Position);
-                await Coroutine.Sleep(100);
-                return;
-            }
-
-            // Enter portal
-            Log.Info("[SimpleMapBot] Re-entering map");
-            LokiPoe.ProcessHookManager.ClearAllKeyStates();
-
-            if (await Coroutines.InteractWith(portal))
-            {
-                await Coroutine.Sleep(2000); // Wait for zone transition
-                _needsToReturnToMap = false;
-                Log.Info("[SimpleMapBot] Returned to map");
-            }
-        }
-
-        private async void TryHandleStash()
-        {
-            // Prevent re-entrant calls
-            if (_isProcessingStash)
-                return;
-
-            // Check if we have items to stash
-            var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
-            if (inventory == null || inventory.Items.Count == 0)
-                return;
-
-            _isProcessingStash = true;
-
-            try
-            {
-                // Find stash
-                var stash = LokiPoe.ObjectManager.Stash;
-                if (stash == null)
-                {
-                    Log.Warn("[SimpleMapBot] Stash not found");
-                    return;
-                }
-
-                // Move to stash if needed
-                if (stash.Distance > 30)
-                {
-                    Log.InfoFormat("[SimpleMapBot] Moving to stash (distance: {0:F1})", stash.Distance);
-                    PlayerMoverManager.Current.MoveTowards(stash.Position);
-                    await Coroutine.Sleep(100);
-                    return;
-                }
-
-                // Open stash if not open
-                if (!LokiPoe.InGameState.StashUi.IsOpened)
-                {
-                    Log.Info("[SimpleMapBot] Opening stash");
-                    LokiPoe.ProcessHookManager.ClearAllKeyStates();
-
-                    if (!await Coroutines.InteractWith(stash))
-                    {
-                        Log.Warn("[SimpleMapBot] Failed to interact with stash");
-                        return;
-                    }
-
-                    // Wait for UI to open
-                    for (int i = 0; i < 30; i++)
-                    {
-                        if (LokiPoe.InGameState.StashUi.IsOpened && LokiPoe.InGameState.StashUi.StashTabInfo != null)
-                            break;
-                        await Coroutine.Sleep(100);
-                    }
-
-                    if (!LokiPoe.InGameState.StashUi.IsOpened)
-                    {
-                        Log.Warn("[SimpleMapBot] Stash UI did not open");
-                        return;
-                    }
-                }
-
-                // Deposit all items
-                Log.Info("[SimpleMapBot] Depositing items to stash");
-                var itemsToStash = inventory.Items.ToList();
-
-                foreach (var item in itemsToStash)
-                {
-                    if (item == null || item.Class == "Maps") // Don't stash maps
-                        continue;
-
-                    LokiPoe.ProcessHookManager.ClearAllKeyStates();
-
-                    var err = LokiPoe.InGameState.InventoryUi.InventoryControl_Main.FastMove(item.LocalId);
-
-                    if (err != FastMoveResult.None)
-                    {
-                        Log.WarnFormat("[SimpleMapBot] Failed to stash item: {0} (error: {1})", item.Name, err);
-                    }
-                    else
-                    {
-                        Log.InfoFormat("[SimpleMapBot] Stashed: {0}", item.Name);
-                    }
-
-                    await Coroutine.Sleep(50);
-                }
-
-                // Close stash
-                LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
-                await Coroutine.Sleep(200);
-
-                Log.Info("[SimpleMapBot] Finished stashing items");
-            }
-            finally
-            {
-                _isProcessingStash = false;
-            }
         }
         #endregion
+
+        private enum MapBotState
+        {
+            Idle,
+            NeedMap,
+            HasMap,
+            MapInDevice,
+            ReadyToActivate,
+            WaitingForPortal,
+            InMap,
+            NeedToStash
+        }
     }
 }
