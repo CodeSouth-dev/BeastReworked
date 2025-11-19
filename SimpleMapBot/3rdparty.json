@@ -1,21 +1,8 @@
 {
   "AssemblyName": "SimpleMapBot",
   "FileList": [
-    "Core/SimpleMapBot.cs",
-    "Core/MapState.cs",
-    "Core/Statistics.cs",
-    "Configuration/SimpleMapBotSettings.cs",
-    "Services/PoeNinjaService.cs",
-    "Tasks/ReturnToHideoutTask.cs",
-    "Tasks/TakeMapFromStashTask.cs",
-    "Tasks/OpenMapDeviceTask.cs",
-    "Tasks/EnterMapTask.cs",
-    "Tasks/ExploreAndClearTask.cs",
-    "Utilities/ErrorManager.cs",
-    "Utilities/Wait.cs"
+    "Core/SimpleMapBot.cs"
   ],
   "Dependencies": [],
-  "References": [
-    "System.Net.Http.dll"
-  ]
+  "References": []
 }
