@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36705.20
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beasts", "Beasts\Beasts.csproj", "{0DCD9093-9649-499E-B58C-CC2CAD808C78}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimpleMapBot", "SimpleMapBot\SimpleMapBot.csproj", "{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,14 @@ Global
 		{0DCD9093-9649-499E-B58C-CC2CAD808C78}.Release|Any CPU.Build.0 = Release|Any CPU
 		{0DCD9093-9649-499E-B58C-CC2CAD808C78}.Release|x64.ActiveCfg = Release|x64
 		{0DCD9093-9649-499E-B58C-CC2CAD808C78}.Release|x64.Build.0 = Release|x64
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Debug|Any CPU.ActiveCfg = Release|x64
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Debug|Any CPU.Build.0 = Release|x64
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Debug|x64.ActiveCfg = Release|x64
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Debug|x64.Build.0 = Release|x64
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Release|x64.ActiveCfg = Release|x64
+		{A8B3C4D5-E6F7-4A5B-9C8D-1E2F3A4B5C6D}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
