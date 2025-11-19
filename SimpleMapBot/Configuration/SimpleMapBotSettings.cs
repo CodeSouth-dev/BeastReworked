@@ -1,5 +1,5 @@
-using DreamPoeBot.Common;
 using System.ComponentModel;
+using DreamPoeBot.Loki.Common;
 
 namespace SimpleMapBot.Configuration
 {
@@ -8,7 +8,7 @@ namespace SimpleMapBot.Configuration
         private static SimpleMapBotSettings _instance;
         public static SimpleMapBotSettings Instance => _instance ?? (_instance = new SimpleMapBotSettings());
 
-        public SimpleMapBotSettings() : base(GetSettingsFilePath(Configuration.Instance.Name, "SimpleMapBot.json"))
+        public SimpleMapBotSettings() : base(GetSettingsFilePath("DreamPoeBot", "SimpleMapBot.json"))
         {
         }
 
