@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using DreamPoeBot.Loki.Common;
 
@@ -122,6 +123,86 @@ namespace SimpleMapBot.Configuration
         public bool ReturnIfStuck { get; set; } = true;
         #endregion
 
+        #region Map Selection
+        [DefaultValue(true)]
+        [Description("Run Crater maps")]
+        public bool EnableCrater { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Underground Sea maps")]
+        public bool EnableUndergroundSea { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Port maps")]
+        public bool EnablePort { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Tower maps")]
+        public bool EnableTower { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Phantasmagoria maps")]
+        public bool EnablePhantasmagoria { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Channel maps")]
+        public bool EnableChannel { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Waterways maps")]
+        public bool EnableWaterways { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Frozen Cabins maps")]
+        public bool EnableFrozenCabins { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Silo maps")]
+        public bool EnableSilo { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Toxic Sewers maps")]
+        public bool EnableToxicSewers { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Atoll maps")]
+        public bool EnableAtoll { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Wastepool maps")]
+        public bool EnableWastepool { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Beach maps")]
+        public bool EnableBeach { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Dunes maps")]
+        public bool EnableDunes { get; set; } = true;
+        #endregion
+
+        #region Scarab Selection
+        [DefaultValue("None")]
+        [Description("Scarab slot 1")]
+        public string ScarabSlot1 { get; set; } = "None";
+
+        [DefaultValue("None")]
+        [Description("Scarab slot 2")]
+        public string ScarabSlot2 { get; set; } = "None";
+
+        [DefaultValue("None")]
+        [Description("Scarab slot 3")]
+        public string ScarabSlot3 { get; set; } = "None";
+
+        [DefaultValue("None")]
+        [Description("Scarab slot 4")]
+        public string ScarabSlot4 { get; set; } = "None";
+
+        [DefaultValue("None")]
+        [Description("Scarab slot 5")]
+        public string ScarabSlot5 { get; set; } = "None";
+        #endregion
+
         #region Debug Settings
         [DefaultValue(false)]
         [Description("Enable debug logging")]
@@ -130,6 +211,78 @@ namespace SimpleMapBot.Configuration
         [DefaultValue(false)]
         [Description("Dry run mode - don't actually enter maps, just test logic")]
         public bool DryRunMode { get; set; } = false;
+        #endregion
+
+        #region Helper Methods
+        /// <summary>
+        /// Get list of enabled map names
+        /// </summary>
+        public List<string> GetEnabledMaps()
+        {
+            var maps = new List<string>();
+
+            if (EnableCrater) maps.Add("Crater");
+            if (EnableUndergroundSea) maps.Add("Underground Sea");
+            if (EnablePort) maps.Add("Port");
+            if (EnableTower) maps.Add("Tower");
+            if (EnablePhantasmagoria) maps.Add("Phantasmagoria");
+            if (EnableChannel) maps.Add("Channel");
+            if (EnableWaterways) maps.Add("Waterways");
+            if (EnableFrozenCabins) maps.Add("Frozen Cabins");
+            if (EnableSilo) maps.Add("Silo");
+            if (EnableToxicSewers) maps.Add("Toxic Sewers");
+            if (EnableAtoll) maps.Add("Atoll");
+            if (EnableWastepool) maps.Add("Wastepool");
+            if (EnableBeach) maps.Add("Beach");
+            if (EnableDunes) maps.Add("Dunes");
+
+            return maps;
+        }
+
+        /// <summary>
+        /// Get list of selected scarabs (excluding "None")
+        /// </summary>
+        public List<string> GetSelectedScarabs()
+        {
+            var scarabs = new List<string>();
+
+            if (ScarabSlot1 != "None") scarabs.Add(ScarabSlot1);
+            if (ScarabSlot2 != "None") scarabs.Add(ScarabSlot2);
+            if (ScarabSlot3 != "None") scarabs.Add(ScarabSlot3);
+            if (ScarabSlot4 != "None") scarabs.Add(ScarabSlot4);
+            if (ScarabSlot5 != "None") scarabs.Add(ScarabSlot5);
+
+            return scarabs;
+        }
+
+        /// <summary>
+        /// Check if a map is enabled
+        /// </summary>
+        public bool IsMapEnabled(string mapName)
+        {
+            if (string.IsNullOrEmpty(mapName))
+                return false;
+
+            // Normalize name for comparison
+            var normalized = mapName.ToLower().Replace(" ", "");
+
+            if (normalized.Contains("crater")) return EnableCrater;
+            if (normalized.Contains("undergroundsea")) return EnableUndergroundSea;
+            if (normalized.Contains("port")) return EnablePort;
+            if (normalized.Contains("tower")) return EnableTower;
+            if (normalized.Contains("phantasmagoria")) return EnablePhantasmagoria;
+            if (normalized.Contains("channel")) return EnableChannel;
+            if (normalized.Contains("waterways")) return EnableWaterways;
+            if (normalized.Contains("frozencabins")) return EnableFrozenCabins;
+            if (normalized.Contains("silo")) return EnableSilo;
+            if (normalized.Contains("toxicsewers")) return EnableToxicSewers;
+            if (normalized.Contains("atoll")) return EnableAtoll;
+            if (normalized.Contains("wastepool")) return EnableWastepool;
+            if (normalized.Contains("beach")) return EnableBeach;
+            if (normalized.Contains("dunes")) return EnableDunes;
+
+            return false; // Unknown map, don't run it
+        }
         #endregion
     }
 }

@@ -8,6 +8,8 @@ using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
 using DreamPoeBot.Loki.Game.GameData;
 using DreamPoeBot.Loki.Game.Objects;
+using SimpleMapBot.Configuration;
+using SimpleMapBot.GUI;
 using log4net;
 
 namespace SimpleMapBot.Core
@@ -22,6 +24,7 @@ namespace SimpleMapBot.Core
         private bool _isProcessingMapDevice = false;
         private bool _isProcessingStash = false;
         private bool _needsToReturnToMap = false;
+        private SimpleMapBotGui _gui;
 
         #region IAuthored
         public string Name => "SimpleMapBot";
@@ -53,8 +56,8 @@ namespace SimpleMapBot.Core
         #endregion
 
         #region IConfigurable
-        public JsonSettings Settings => null;
-        public UserControl Control => null;
+        public JsonSettings Settings => SimpleMapBotSettings.Instance;
+        public UserControl Control => _gui ?? (_gui = new SimpleMapBotGui());
         #endregion
 
         #region ILogicProvider
@@ -76,6 +79,28 @@ namespace SimpleMapBot.Core
         public void Start()
         {
             Log.Info("[SimpleMapBot] Bot started!");
+
+            // Log enabled maps
+            var enabledMaps = SimpleMapBotSettings.Instance.GetEnabledMaps();
+            if (enabledMaps.Count > 0)
+            {
+                Log.InfoFormat("[SimpleMapBot] Enabled maps ({0}): {1}", enabledMaps.Count, string.Join(", ", enabledMaps));
+            }
+            else
+            {
+                Log.Warn("[SimpleMapBot] No maps enabled! Please configure map selection in GUI.");
+            }
+
+            // Log selected scarabs
+            var selectedScarabs = SimpleMapBotSettings.Instance.GetSelectedScarabs();
+            if (selectedScarabs.Count > 0)
+            {
+                Log.InfoFormat("[SimpleMapBot] Selected scarabs ({0}): {1}", selectedScarabs.Count, string.Join(", ", selectedScarabs));
+            }
+            else
+            {
+                Log.Info("[SimpleMapBot] Running with 0 scarabs");
+            }
         }
 
         public void Stop()
@@ -226,8 +251,23 @@ namespace SimpleMapBot.Core
             if (inventory == null)
                 return null;
 
+            var settings = SimpleMapBotSettings.Instance;
+
+            // Find first map that matches our enabled maps filter
             return inventory.Items.FirstOrDefault(item =>
-                item != null && item.Class == "Maps");
+            {
+                if (item == null || item.Class != "Maps")
+                    return false;
+
+                // Check if this map is enabled in settings
+                if (!settings.IsMapEnabled(item.Name))
+                {
+                    Log.DebugFormat("[SimpleMapBot] Skipping disabled map: {0}", item.Name);
+                    return false;
+                }
+
+                return true;
+            });
         }
 
         private async Task OpenAndActivateMapDevice(Item map)

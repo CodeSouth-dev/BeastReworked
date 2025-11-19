@@ -1,8 +1,14 @@
 {
   "AssemblyName": "SimpleMapBot",
   "FileList": [
-    "Core/SimpleMapBot.cs"
+    "Core/SimpleMapBot.cs",
+    "Configuration/SimpleMapBotSettings.cs",
+    "GUI/SimpleMapBotGui.xaml.cs"
   ],
   "Dependencies": [],
-  "References": []
+  "References": [
+    "PresentationCore.dll",
+    "PresentationFramework.dll",
+    "WindowsBase.dll"
+  ]
 }

@@ -1,0 +1,97 @@
+<UserControl x:Class="SimpleMapBot.GUI.SimpleMapBotGui"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="500">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10">
+            <!-- Bot Information -->
+            <GroupBox Header="Bot Information" Margin="0,0,0,10">
+                <TextBlock TextWrapping="Wrap" Margin="5">
+                    <Bold>SimpleMapBot</Bold><LineBreak/>
+                    <LineBreak/>
+                    This bot handles looting, map device operation, and stashing.<LineBreak/>
+                    <LineBreak/>
+                    <Bold>Features:</Bold><LineBreak/>
+                    • Loads maps from inventory or stash<LineBreak/>
+                    • Opens and activates map device<LineBreak/>
+                    • Loots currency, maps, and divination cards<LineBreak/>
+                    • Returns to hideout when inventory is full<LineBreak/>
+                    • Supports map selection (14 preferred maps)<LineBreak/>
+                    • Supports up to 5 scarab slots (or 0 scarabs)<LineBreak/>
+                    <LineBreak/>
+                    <Bold>Note:</Bold> Movement is handled by BeastMover, combat by BeastCombatRoutine.
+                </TextBlock>
+            </GroupBox>
+
+            <!-- Map Selection -->
+            <GroupBox Header="Map Selection" Margin="0,0,0,10">
+                <StackPanel Margin="5">
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,5">
+                        Select which maps the bot should run. Only enabled maps will be loaded from inventory/stash.
+                    </TextBlock>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Column 1 -->
+                        <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                            <CheckBox x:Name="cbCrater" Content="Crater" Margin="0,2"/>
+                            <CheckBox x:Name="cbUndergroundSea" Content="Underground Sea" Margin="0,2"/>
+                            <CheckBox x:Name="cbPort" Content="Port" Margin="0,2"/>
+                            <CheckBox x:Name="cbTower" Content="Tower" Margin="0,2"/>
+                            <CheckBox x:Name="cbPhantasmagoria" Content="Phantasmagoria" Margin="0,2"/>
+                            <CheckBox x:Name="cbChannel" Content="Channel" Margin="0,2"/>
+                            <CheckBox x:Name="cbWaterways" Content="Waterways" Margin="0,2"/>
+                        </StackPanel>
+
+                        <!-- Column 2 -->
+                        <StackPanel Grid.Column="1">
+                            <CheckBox x:Name="cbFrozenCabins" Content="Frozen Cabins" Margin="0,2"/>
+                            <CheckBox x:Name="cbSilo" Content="Silo" Margin="0,2"/>
+                            <CheckBox x:Name="cbToxicSewers" Content="Toxic Sewers" Margin="0,2"/>
+                            <CheckBox x:Name="cbAtoll" Content="Atoll" Margin="0,2"/>
+                            <CheckBox x:Name="cbWastepool" Content="Wastepool" Margin="0,2"/>
+                            <CheckBox x:Name="cbBeach" Content="Beach" Margin="0,2"/>
+                            <CheckBox x:Name="cbDunes" Content="Dunes" Margin="0,2"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Scarab Selection -->
+            <GroupBox Header="Scarab Selection (0-5 Scarabs)" Margin="0,0,0,10">
+                <StackPanel Margin="5">
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,5">
+                        Select up to 5 scarabs to use with maps. Set to "None" to skip a slot.
+                    </TextBlock>
+
+                    <StackPanel>
+                        <Label Content="Scarab Slot 1:" Margin="0,5,0,0"/>
+                        <ComboBox x:Name="cmbScarab1" Margin="0,0,0,5"/>
+
+                        <Label Content="Scarab Slot 2:" Margin="0,5,0,0"/>
+                        <ComboBox x:Name="cmbScarab2" Margin="0,0,0,5"/>
+
+                        <Label Content="Scarab Slot 3:" Margin="0,5,0,0"/>
+                        <ComboBox x:Name="cmbScarab3" Margin="0,0,0,5"/>
+
+                        <Label Content="Scarab Slot 4:" Margin="0,5,0,0"/>
+                        <ComboBox x:Name="cmbScarab4" Margin="0,0,0,5"/>
+
+                        <Label Content="Scarab Slot 5:" Margin="0,5,0,0"/>
+                        <ComboBox x:Name="cmbScarab5" Margin="0,0,0,5"/>
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Save Button -->
+            <Button x:Name="btnSave" Content="Save Settings" Height="30" Margin="0,10,0,0"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
