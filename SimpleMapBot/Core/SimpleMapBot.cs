@@ -78,7 +78,40 @@ namespace SimpleMapBot.Core
         #region IStartStopEvents
         public void Start()
         {
-            Log.Info("[SimpleMapBot] Bot started!");
+            Log.Info("=====================================================");
+            Log.Info("[SimpleMapBot] Starting SimpleMapBot v1.0.0");
+            Log.Info("=====================================================");
+
+            // Check required components
+            var currentMover = PlayerMoverManager.Current;
+            var currentRoutine = RoutineManager.Current;
+
+            Log.InfoFormat("[SimpleMapBot] PlayerMover: {0}", currentMover?.Name ?? "NONE - WARNING!");
+            Log.InfoFormat("[SimpleMapBot] Routine: {0}", currentRoutine?.Name ?? "NONE - WARNING!");
+
+            if (currentMover == null)
+            {
+                Log.Error("[SimpleMapBot] ===== NO PLAYERMOVER SELECTED =====");
+                Log.Error("[SimpleMapBot] Please select BeastMover in the Bot Settings!");
+            }
+            else if (currentMover.Name != "BeastMover")
+            {
+                Log.WarnFormat("[SimpleMapBot] PlayerMover is '{0}' - BeastMover is recommended", currentMover.Name);
+            }
+
+            if (currentRoutine == null)
+            {
+                Log.Error("[SimpleMapBot] ===== NO ROUTINE SELECTED =====");
+                Log.Error("[SimpleMapBot] Please select BeastCombatRoutine in the Bot Settings!");
+            }
+            else if (currentRoutine.Name != "BeastCombatRoutine")
+            {
+                Log.WarnFormat("[SimpleMapBot] Routine is '{0}' - BeastCombatRoutine is recommended", currentRoutine.Name);
+            }
+
+            // Cache all bound keys
+            LokiPoe.Input.Binding.Update();
+            Log.InfoFormat("[SimpleMapBot] KeyPickup: {0}", LokiPoe.ConfigManager.KeyPickup);
 
             // Log enabled maps
             var enabledMaps = SimpleMapBotSettings.Instance.GetEnabledMaps();
@@ -88,7 +121,8 @@ namespace SimpleMapBot.Core
             }
             else
             {
-                Log.Warn("[SimpleMapBot] No maps enabled! Please configure map selection in GUI.");
+                Log.Error("[SimpleMapBot] ===== NO MAPS ENABLED =====");
+                Log.Error("[SimpleMapBot] Please configure map selection in the GUI!");
             }
 
             // Log selected scarabs
@@ -99,8 +133,12 @@ namespace SimpleMapBot.Core
             }
             else
             {
-                Log.Info("[SimpleMapBot] Running with 0 scarabs");
+                Log.Info("[SimpleMapBot] Running with 0 scarabs (none configured)");
             }
+
+            Log.Info("=====================================================");
+            Log.Info("[SimpleMapBot] Startup complete - ready to run maps!");
+            Log.Info("=====================================================");
         }
 
         public void Stop()
@@ -122,19 +160,36 @@ namespace SimpleMapBot.Core
             // Main bot logic
             if (!LokiPoe.IsInGame)
             {
+                if (_tickCount % 200 == 0)
+                {
+                    Log.Info("[SimpleMapBot] Waiting for game... (not in game yet)");
+                }
+                _tickCount++;
                 return;
             }
 
             var cwa = LokiPoe.CurrentWorldArea;
-
-            // Just log every 100 ticks
             _tickCount++;
 
-            if (_tickCount % 100 == 0)
+            // Log status every 5 seconds (roughly 150 ticks at 30ms per tick)
+            if (_tickCount % 150 == 0)
             {
                 var pos = LokiPoe.MyPosition;
-                Log.InfoFormat("[SimpleMapBot] Tick {0} - Area: {1}, Pos: {2}",
-                    _tickCount, cwa?.Name ?? "Unknown", pos);
+                var areaName = cwa?.Name ?? "Unknown";
+                var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
+                var itemCount = inventory?.Items?.Count ?? 0;
+
+                Log.InfoFormat("[SimpleMapBot] Status - Area: {0}, Items in inventory: {1}, Pos: {2}",
+                    areaName, itemCount, pos);
+
+                if (cwa != null && cwa.IsHideoutArea)
+                {
+                    Log.Info("[SimpleMapBot] In hideout - looking for map device or stash");
+                }
+                else if (cwa != null)
+                {
+                    Log.Info("[SimpleMapBot] In map - looting and clearing");
+                }
             }
 
             // In hideout - handle stashing or map device
@@ -143,6 +198,10 @@ namespace SimpleMapBot.Core
                 // If we need to return to map, find and enter the portal
                 if (_needsToReturnToMap)
                 {
+                    if (_tickCount % 50 == 0)
+                    {
+                        Log.Info("[SimpleMapBot] Need to return to map after stashing");
+                    }
                     TryReturnToMap();
                     return;
                 }
@@ -218,25 +277,36 @@ namespace SimpleMapBot.Core
             try
             {
                 // Check if portal already exists (map device activated)
-                var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
-                    .FirstOrDefault(p => p.Distance < 100);
+                var portals = LokiPoe.ObjectManager.GetObjectsByType<Portal>();
+                var portal = portals.FirstOrDefault(p => p.Distance < 100);
 
                 if (portal != null)
                 {
-                    Log.InfoFormat("[SimpleMapBot] Found portal, entering map");
+                    Log.InfoFormat("[SimpleMapBot] Found portal at {0:F1}m, entering map", portal.Distance);
                     await EnterPortal(portal);
                     return;
+                }
+
+                // Log when searching for map device
+                if (_tickCount % 100 == 0)
+                {
+                    Log.Debug("[SimpleMapBot] No portal found, checking for map in inventory");
                 }
 
                 // Check if we have a map in inventory
                 var map = GetMapFromInventory();
                 if (map == null)
                 {
-                    Log.Warn("[SimpleMapBot] No map in inventory");
+                    if (_tickCount % 200 == 0)
+                    {
+                        Log.Warn("[SimpleMapBot] No enabled map in inventory - waiting for maps");
+                        Log.Warn("[SimpleMapBot] Make sure you have maps that match your enabled map list!");
+                    }
                     return;
                 }
 
                 // Open map device and place map
+                Log.InfoFormat("[SimpleMapBot] Found map to run: {0}", map.Name);
                 await OpenAndActivateMapDevice(map);
             }
             finally
@@ -249,9 +319,24 @@ namespace SimpleMapBot.Core
         {
             var inventory = LokiPoe.InstanceInfo.GetPlayerInventoryBySlot(InventorySlot.Main);
             if (inventory == null)
+            {
+                Log.Debug("[SimpleMapBot] Inventory is null");
                 return null;
+            }
 
             var settings = SimpleMapBotSettings.Instance;
+
+            // Count maps in inventory for logging
+            var allMaps = inventory.Items.Where(i => i != null && i.Class == "Maps").ToList();
+            if (allMaps.Count > 0 && _tickCount % 200 == 0)
+            {
+                Log.DebugFormat("[SimpleMapBot] Found {0} total maps in inventory", allMaps.Count);
+                foreach (var m in allMaps)
+                {
+                    var enabled = settings.IsMapEnabled(m.Name) ? "ENABLED" : "disabled";
+                    Log.DebugFormat("[SimpleMapBot]   - {0} ({1})", m.Name, enabled);
+                }
+            }
 
             // Find first map that matches our enabled maps filter
             return inventory.Items.FirstOrDefault(item =>
@@ -262,7 +347,6 @@ namespace SimpleMapBot.Core
                 // Check if this map is enabled in settings
                 if (!settings.IsMapEnabled(item.Name))
                 {
-                    Log.DebugFormat("[SimpleMapBot] Skipping disabled map: {0}", item.Name);
                     return false;
                 }
 
