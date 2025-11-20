@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -32,6 +33,10 @@ namespace SimpleMapBot.Core
         private MapBotState _currentState = MapBotState.Idle;
         private int _tickCount = 0;
         private int _stateAttempts = 0;
+
+        // Map timer
+        private readonly Stopwatch _mapTimer = new Stopwatch();
+        private bool _mapTimerStarted = false;
 
         #region IAuthored
         public string Name => "SimpleMapBot";
@@ -90,6 +95,9 @@ namespace SimpleMapBot.Core
             Log.Info("=====================================================");
             Log.InfoFormat("[SimpleMapBot] Boss-seeking threshold: {0} monsters remaining",
                 SimpleMapBotSettings.Instance.MonstersRemainingThreshold);
+            Log.InfoFormat("[SimpleMapBot] Max time per map: {0} seconds ({1} minutes)",
+                SimpleMapBotSettings.Instance.MaxMapTimeSeconds,
+                SimpleMapBotSettings.Instance.MaxMapTimeSeconds / 60);
 
             // Enable ProcessHookManager for client actions (CRITICAL!)
             LokiPoe.ProcessHookManager.Enable();
@@ -305,22 +313,60 @@ namespace SimpleMapBot.Core
 
         private async Task HandleMapState()
         {
+            // Start map timer on first entry
+            if (!_mapTimerStarted)
+            {
+                _mapTimer.Restart();
+                _mapTimerStarted = true;
+                Log.InfoFormat("[SimpleMapBot] Map timer started - {0} second limit",
+                    SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
+            }
+
+            // Check time limit
+            if (_mapTimer.Elapsed.TotalSeconds >= SimpleMapBotSettings.Instance.MaxMapTimeSeconds)
+            {
+                Log.InfoFormat("[SimpleMapBot] ===== TIME LIMIT REACHED ({0:F0}s / {1}s) =====",
+                    _mapTimer.Elapsed.TotalSeconds,
+                    SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
+                Log.Info("[SimpleMapBot] Exiting map due to time limit");
+                await ReturnToHideout();
+                _currentState = MapBotState.NeedToStash;
+                _mapTimer.Reset();
+                _mapTimerStarted = false;
+                return;
+            }
+
             // Check map completion
             int monstersRemaining = LokiPoe.InstanceInfo.MonstersRemaining;
 
-            // Log monsters remaining periodically
+            // Log monsters remaining and time periodically
             if (_tickCount % 100 == 0 && monstersRemaining >= 0)
             {
-                Log.InfoFormat("[SimpleMapBot] Monsters remaining: {0}", monstersRemaining);
+                if (monstersRemaining == 0)
+                {
+                    Log.InfoFormat("[SimpleMapBot] Status: Map Completed | Time: {0:F0}s / {1}s",
+                        _mapTimer.Elapsed.TotalSeconds,
+                        SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
+                }
+                else
+                {
+                    Log.InfoFormat("[SimpleMapBot] Monsters remaining: {0} | Time: {1:F0}s / {2}s",
+                        monstersRemaining,
+                        _mapTimer.Elapsed.TotalSeconds,
+                        SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
+                }
             }
 
             // Map complete - boss killed (MonstersRemaining = 0)
             if (monstersRemaining == 0)
             {
-                Log.Info("[SimpleMapBot] ===== MAP COMPLETE (Boss Killed) =====");
+                Log.InfoFormat("[SimpleMapBot] ===== MAP COMPLETE (Boss Killed) - Time: {0:F0}s =====",
+                    _mapTimer.Elapsed.TotalSeconds);
                 Log.Info("[SimpleMapBot] Returning to hideout for next map");
                 await ReturnToHideout();
                 _currentState = MapBotState.NeedToStash;
+                _mapTimer.Reset();
+                _mapTimerStarted = false;
                 return;
             }
 
@@ -335,9 +381,12 @@ namespace SimpleMapBot.Core
             // Inventory full - return to stash
             if (IsInventoryFull())
             {
-                Log.Info("[SimpleMapBot] Inventory full, returning to hideout");
+                Log.InfoFormat("[SimpleMapBot] Inventory full, returning to hideout - Time: {0:F0}s",
+                    _mapTimer.Elapsed.TotalSeconds);
                 await ReturnToHideout();
                 _currentState = MapBotState.NeedToStash;
+                _mapTimer.Reset();
+                _mapTimerStarted = false;
                 return;
             }
 
