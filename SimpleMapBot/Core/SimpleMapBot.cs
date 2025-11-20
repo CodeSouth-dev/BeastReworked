@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
 using DreamPoeBot.BotFramework;
+using DreamPoeBot.Common;
 using DreamPoeBot.Loki.Bot;
 using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Coroutine;
@@ -886,7 +887,7 @@ namespace SimpleMapBot.Core
         /// <summary>
         /// Safely moves to a position, checking for null PlayerMover
         /// </summary>
-        private bool SafeMove(DreamPoeBot.Loki.Common.Vector2i position)
+        private bool SafeMove(Vector2i position)
         {
             var mover = PlayerMoverManager.Current;
             if (mover == null)
