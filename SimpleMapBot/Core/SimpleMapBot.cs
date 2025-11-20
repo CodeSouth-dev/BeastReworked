@@ -837,7 +837,7 @@ namespace SimpleMapBot.Core
         /// <summary>
         /// Safely moves to a position, checking for null PlayerMover
         /// </summary>
-        private bool SafeMove(Vector2i position)
+        private bool SafeMove(DreamPoeBot.Loki.Common.Vector2i position)
         {
             var mover = PlayerMoverManager.Current;
             if (mover == null)

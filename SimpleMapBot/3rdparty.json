@@ -9,5 +9,7 @@
   "Dependencies": [
     "BeastRoutine"
   ],
-  "References": []
+  "References": [
+    "System.Net.Http.dll"
+  ]
 }
