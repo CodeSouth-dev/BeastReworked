@@ -44,9 +44,9 @@ namespace SimpleMapBot.Configuration
         #endregion
 
         #region Zone Exploration
-        [DefaultValue(60)]
-        [Description("Maximum time to spend in a map (seconds) before returning")]
-        public int MaxMapTimeSeconds { get; set; } = 60;
+        [DefaultValue(720)]
+        [Description("Maximum time to spend in a map (seconds) before returning (default: 12 minutes)")]
+        public int MaxMapTimeSeconds { get; set; } = 720;
 
         [DefaultValue(30)]
         [Description("Exploration radius from starting point")]

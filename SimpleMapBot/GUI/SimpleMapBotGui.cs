@@ -42,6 +42,9 @@ namespace SimpleMapBot.GUI
         private StackPanel scarab4Panel;
         private StackPanel scarab5Panel;
 
+        // Bot settings
+        private TextBox txtMaxMapTime;
+
         // Save button
         private Button btnSave;
 
@@ -193,6 +196,35 @@ namespace SimpleMapBot.GUI
             mapGroup.Content = mapGrid;
             mainPanel.Children.Add(mapGroup);
 
+            // Bot Settings Section
+            var settingsGroup = CreateGroupBox("Bot Settings");
+            var settingsPanel = new StackPanel { Orientation = Orientation.Vertical };
+
+            var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(5) };
+            timePanel.Children.Add(new TextBlock
+            {
+                Text = "Max Time Per Map (seconds):",
+                Width = 200,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            txtMaxMapTime = new TextBox
+            {
+                Width = 100,
+                Text = SimpleMapBotSettings.Instance.MaxMapTimeSeconds.ToString()
+            };
+            timePanel.Children.Add(txtMaxMapTime);
+            timePanel.Children.Add(new TextBlock
+            {
+                Text = " (720s = 12 min)",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0),
+                Foreground = System.Windows.Media.Brushes.Gray
+            });
+
+            settingsPanel.Children.Add(timePanel);
+            settingsGroup.Content = settingsPanel;
+            mainPanel.Children.Add(settingsGroup);
+
             // Scarab Selection Section
             var scarabGroup = CreateGroupBox("Scarab Selection");
             var scarabPanel = new StackPanel { Orientation = Orientation.Vertical };
@@ -302,6 +334,17 @@ namespace SimpleMapBot.GUI
         private void BtnSave_Click(object sender, RoutedEventArgs e)
         {
             var settings = SimpleMapBotSettings.Instance;
+
+            // Save bot settings
+            if (int.TryParse(txtMaxMapTime.Text, out int maxMapTime))
+            {
+                settings.MaxMapTimeSeconds = maxMapTime;
+            }
+            else
+            {
+                MessageBox.Show("Invalid max map time. Please enter a number.", "SimpleMapBot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             // Save map checkboxes
             settings.EnableCrater = cbCrater.IsChecked ?? false;
