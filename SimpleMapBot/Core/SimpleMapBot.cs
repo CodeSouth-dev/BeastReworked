@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Controls;
@@ -34,9 +35,9 @@ namespace SimpleMapBot.Core
 
         #region IAuthored
         public string Name => "SimpleMapBot";
-        public string Description => "Simple map running bot - stash to map device workflow, looting, stashing";
+        public string Description => "Simple map running bot - stash to map device workflow, looting, stashing, boss seeking";
         public string Author => "BeastReworked";
-        public string Version => "1.0.1";
+        public string Version => "1.1.0";
         #endregion
 
         #region IBase
@@ -85,8 +86,10 @@ namespace SimpleMapBot.Core
         public void Start()
         {
             Log.Info("=====================================================");
-            Log.Info("[SimpleMapBot] Starting SimpleMapBot v1.0.1");
+            Log.Info("[SimpleMapBot] Starting SimpleMapBot v1.1.0");
             Log.Info("=====================================================");
+            Log.InfoFormat("[SimpleMapBot] Boss-seeking threshold: {0} monsters remaining",
+                SimpleMapBotSettings.Instance.MonstersRemainingThreshold);
 
             // Enable ProcessHookManager for client actions (CRITICAL!)
             LokiPoe.ProcessHookManager.Enable();
@@ -302,7 +305,34 @@ namespace SimpleMapBot.Core
 
         private async Task HandleMapState()
         {
-            // In map - loot items
+            // Check map completion
+            int monstersRemaining = LokiPoe.InstanceInfo.MonstersRemaining;
+
+            // Log monsters remaining periodically
+            if (_tickCount % 100 == 0 && monstersRemaining >= 0)
+            {
+                Log.InfoFormat("[SimpleMapBot] Monsters remaining: {0}", monstersRemaining);
+            }
+
+            // Map complete - boss killed (MonstersRemaining = 0)
+            if (monstersRemaining == 0)
+            {
+                Log.Info("[SimpleMapBot] ===== MAP COMPLETE (Boss Killed) =====");
+                Log.Info("[SimpleMapBot] Returning to hideout for next map");
+                await ReturnToHideout();
+                _currentState = MapBotState.NeedToStash;
+                return;
+            }
+
+            // Few monsters left - seek boss
+            if (monstersRemaining > 0 && monstersRemaining <= SimpleMapBotSettings.Instance.MonstersRemainingThreshold)
+            {
+                Log.InfoFormat("[SimpleMapBot] Only {0} monsters left - seeking boss", monstersRemaining);
+                await SeekBoss();
+                return;
+            }
+
+            // Inventory full - return to stash
             if (IsInventoryFull())
             {
                 Log.Info("[SimpleMapBot] Inventory full, returning to hideout");
@@ -311,7 +341,108 @@ namespace SimpleMapBot.Core
                 return;
             }
 
+            // Normal mapping - loot items
             await TryLootNearbyItems();
+        }
+
+        private async Task SeekBoss()
+        {
+            // Look for boss monster
+            var boss = LokiPoe.ObjectManager.GetObjectsByType<Monster>()
+                .Where(m => m != null && m.IsValid && m.IsAliveHostile)
+                .Where(m => m.Rarity == Rarity.Unique || m.IsBoss)
+                .OrderBy(m => m.Distance)
+                .FirstOrDefault();
+
+            if (boss != null)
+            {
+                if (_tickCount % 50 == 0)
+                {
+                    Log.InfoFormat("[SimpleMapBot] Boss found: {0} at {1:F1}m", boss.Name, boss.Distance);
+                }
+
+                // Move towards boss (let BeastCombatRoutine handle the fighting)
+                if (boss.Distance > 40f)
+                {
+                    if (!SafeMove(boss.Position))
+                        return;
+                    await Coroutine.Sleep(100);
+                }
+                return;
+            }
+
+            // No boss visible - look for boss arena entrance or unexplored areas
+            var bossArena = FindBossArenaEntrance();
+            if (bossArena != null)
+            {
+                if (_tickCount % 50 == 0)
+                {
+                    Log.InfoFormat("[SimpleMapBot] Boss arena detected: {0} at {1:F1}m", bossArena.Name, bossArena.Distance);
+                }
+
+                if (bossArena.Distance > 20f)
+                {
+                    if (!SafeMove(bossArena.Position))
+                        return;
+                    await Coroutine.Sleep(100);
+                }
+                else
+                {
+                    // Try to interact with arena entrance
+                    await Coroutines.InteractWith(bossArena);
+                    await Coroutine.Sleep(500);
+                }
+                return;
+            }
+
+            // No boss or arena found - explore map to find boss
+            if (_tickCount % 100 == 0)
+            {
+                Log.Debug("[SimpleMapBot] Boss not found, exploring to find boss area");
+            }
+
+            // Pick random exploration direction
+            var myPos = LokiPoe.MyPosition;
+            var angle = LokiPoe.Random.Next(0, 360);
+            var distance = 40;
+            var x = (int)(distance * Math.Cos(angle * Math.PI / 180));
+            var y = (int)(distance * Math.Sin(angle * Math.PI / 180));
+            var target = myPos + new Vector2i(x, y);
+
+            if (!SafeMove(target))
+                return;
+            await Coroutine.Sleep(100);
+        }
+
+        private NetworkObject FindBossArenaEntrance()
+        {
+            // Look for common boss arena indicators
+            var candidates = LokiPoe.ObjectManager.Objects
+                .Where(obj => obj != null && obj.IsValid && obj.Distance < 150f)
+                .Where(obj =>
+                {
+                    if (obj.Name == null && obj.Metadata == null)
+                        return false;
+
+                    string name = obj.Name?.ToLower() ?? "";
+                    string metadata = obj.Metadata?.ToLower() ?? "";
+
+                    // Common boss arena patterns
+                    return name.Contains("arena") ||
+                           name.Contains("boss") ||
+                           (name.Contains("portal") && name.Contains("boss")) ||
+                           metadata.Contains("bossportal") ||
+                           metadata.Contains("bossarena") ||
+                           metadata.Contains("questportal") ||
+                           name.Contains("aspirant") ||
+                           name.Contains("atziri") ||
+                           name.Contains("shaper") ||
+                           name.Contains("elder");
+                })
+                .OrderBy(obj => obj.Distance)
+                .FirstOrDefault();
+
+            return candidates;
         }
 
         private async Task WithdrawMapFromStash()
