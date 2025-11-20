@@ -13,7 +13,7 @@ using DreamPoeBot.Loki.Game.GameData;
 using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
 using SimpleMapBot.GUI;
-using Beasts.Services;
+using SimpleMapBot.Services;
 using log4net;
 
 namespace SimpleMapBot.Core
@@ -163,7 +163,7 @@ namespace SimpleMapBot.Core
             {
                 var league = SimpleMapBotSettings.Instance.PoeNinjaLeague;
                 Log.InfoFormat("[SimpleMapBot] Initializing poe.ninja price service for league: {0}", league);
-                SimpleMapBot.Services.PoeNinjaService.Initialize(league);
+                PoeNinjaService.Initialize(league);
             }
             else
             {
@@ -400,7 +400,7 @@ namespace SimpleMapBot.Core
             // Look for boss monster
             var boss = LokiPoe.ObjectManager.GetObjectsByType<Monster>()
                 .Where(m => m != null && m.IsValid && m.IsAliveHostile)
-                .Where(m => m.Rarity == Rarity.Unique || m.IsBoss)
+                .Where(m => m.Rarity == Rarity.Unique)
                 .OrderBy(m => m.Distance)
                 .FirstOrDefault();
 
@@ -873,7 +873,7 @@ namespace SimpleMapBot.Core
             var settings = SimpleMapBotSettings.Instance;
             if (settings.UsePoeNinjaFiltering && settings.MinItemValueChaos > 0)
             {
-                var value = SimpleMapBot.Services.PoeNinjaService.GetItemValue(item.Name, item.Class);
+                var value = PoeNinjaService.GetItemValue(item.Name, item.Class);
                 if (value.HasValue && value.Value >= settings.MinItemValueChaos)
                 {
                     Log.DebugFormat("[SimpleMapBot] Valuable item detected: {0} ({1}c)", item.Name, value.Value);
