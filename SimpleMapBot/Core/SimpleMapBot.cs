@@ -146,6 +146,18 @@ namespace SimpleMapBot.Core
                 Log.Info("[SimpleMapBot] Running with 0 scarabs (none configured)");
             }
 
+            // Initialize PoeNinja service if filtering is enabled
+            if (SimpleMapBotSettings.Instance.UsePoeNinjaFiltering)
+            {
+                var league = SimpleMapBotSettings.Instance.PoeNinjaLeague;
+                Log.InfoFormat("[SimpleMapBot] Initializing poe.ninja price service for league: {0}", league);
+                SimpleMapBot.Services.PoeNinjaService.Initialize(league);
+            }
+            else
+            {
+                Log.Info("[SimpleMapBot] poe.ninja filtering disabled");
+            }
+
             // Reset coroutine
             _coroutine = null;
 
@@ -332,7 +344,8 @@ namespace SimpleMapBot.Core
                 {
                     Log.InfoFormat("[SimpleMapBot] Moving to stash ({0:F1}m)", stash.Distance);
                 }
-                PlayerMoverManager.Current.MoveTowards(stash.Position);
+                if (!SafeMove(stash.Position))
+                    return;
                 await Coroutine.Sleep(100);
                 return;
             }
@@ -570,7 +583,8 @@ namespace SimpleMapBot.Core
             // Move to portal
             if (portal.Distance > 30f)
             {
-                PlayerMoverManager.Current.MoveTowards(portal.Position);
+                if (!SafeMove(portal.Position))
+                    return;
                 await Coroutine.Sleep(100);
                 return;
             }
@@ -594,7 +608,8 @@ namespace SimpleMapBot.Core
             // Move to stash
             if (stash.Distance > 15f)
             {
-                PlayerMoverManager.Current.MoveTowards(stash.Position);
+                if (!SafeMove(stash.Position))
+                    return;
                 await Coroutine.Sleep(100);
                 return;
             }
@@ -650,7 +665,8 @@ namespace SimpleMapBot.Core
             // Move to loot
             if (loot.Distance > 10)
             {
-                PlayerMoverManager.Current.MoveTowards(loot.Position);
+                if (!SafeMove(loot.Position))
+                    return;
                 await Coroutine.Sleep(50);
                 return;
             }
@@ -668,9 +684,42 @@ namespace SimpleMapBot.Core
             if (item == null)
                 return false;
 
-            return item.Class == "Currency" ||
-                   item.Class == "Maps" ||
-                   item.Class == "Divination Card";
+            // Always pick up currency, maps, and divination cards
+            if (item.Class == "Currency" || item.Class == "Maps" || item.Class == "Divination Card")
+                return true;
+
+            // Use poe.ninja filtering if enabled
+            var settings = SimpleMapBotSettings.Instance;
+            if (settings.UsePoeNinjaFiltering && settings.MinItemValueChaos > 0)
+            {
+                var value = SimpleMapBot.Services.PoeNinjaService.GetItemValue(item.Name, item.Class);
+                if (value.HasValue && value.Value >= settings.MinItemValueChaos)
+                {
+                    Log.DebugFormat("[SimpleMapBot] Valuable item detected: {0} ({1}c)", item.Name, value.Value);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Safely moves to a position, checking for null PlayerMover
+        /// </summary>
+        private bool SafeMove(Vector2i position)
+        {
+            var mover = PlayerMoverManager.Current;
+            if (mover == null)
+            {
+                if (_tickCount % 100 == 0)
+                {
+                    Log.Error("[SimpleMapBot] Cannot move - no PlayerMover selected! Please select BeastMover in Bot Settings.");
+                }
+                return false;
+            }
+
+            mover.MoveTowards(position);
+            return true;
         }
 
         private Item GetEnabledMapFromInventory()

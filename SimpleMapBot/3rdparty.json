@@ -3,7 +3,8 @@
   "FileList": [
     "Core/SimpleMapBot.cs",
     "Configuration/SimpleMapBotSettings.cs",
-    "GUI/SimpleMapBotGui.cs"
+    "GUI/SimpleMapBotGui.cs",
+    "Services/PoeNinjaService.cs"
   ],
   "Dependencies": [
     "BeastRoutine"
