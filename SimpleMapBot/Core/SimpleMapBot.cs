@@ -88,6 +88,14 @@ namespace SimpleMapBot.Core
             Log.Info("[SimpleMapBot] Starting SimpleMapBot v1.0.1");
             Log.Info("=====================================================");
 
+            // Enable ProcessHookManager for client actions (CRITICAL!)
+            LokiPoe.ProcessHookManager.Enable();
+            Log.Info("[SimpleMapBot] ProcessHookManager enabled");
+
+            // Cache all bound keys
+            LokiPoe.Input.Binding.Update();
+            Log.InfoFormat("[SimpleMapBot] KeyPickup: {0}", LokiPoe.ConfigManager.KeyPickup);
+
             // Check required components
             var currentMover = PlayerMoverManager.Current;
             var currentRoutine = RoutineManager.Current;
@@ -114,10 +122,6 @@ namespace SimpleMapBot.Core
             {
                 Log.WarnFormat("[SimpleMapBot] Routine is '{0}' - BeastCombatRoutine is recommended", currentRoutine.Name);
             }
-
-            // Cache all bound keys
-            LokiPoe.Input.Binding.Update();
-            Log.InfoFormat("[SimpleMapBot] KeyPickup: {0}", LokiPoe.ConfigManager.KeyPickup);
 
             // Log enabled maps
             var enabledMaps = SimpleMapBotSettings.Instance.GetEnabledMaps();
@@ -154,6 +158,11 @@ namespace SimpleMapBot.Core
         public void Stop()
         {
             Log.Info("[SimpleMapBot] Bot stopped!");
+
+            // Disable ProcessHookManager
+            LokiPoe.ProcessHookManager.Disable();
+            Log.Info("[SimpleMapBot] ProcessHookManager disabled");
+
             _currentState = MapBotState.Idle;
             _stateAttempts = 0;
 
