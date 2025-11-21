@@ -182,9 +182,9 @@ namespace SimpleMapBot.Configuration
         #endregion
 
         #region Scarab Selection
-        [DefaultValue("None")]
+        [DefaultValue("Scarab of Shipping")]
         [Description("Scarab slot 1")]
-        public string ScarabSlot1 { get; set; } = "None";
+        public string ScarabSlot1 { get; set; } = "Scarab of Shipping";
 
         [DefaultValue("None")]
         [Description("Scarab slot 2")]
