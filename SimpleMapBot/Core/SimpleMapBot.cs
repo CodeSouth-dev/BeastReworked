@@ -14,7 +14,6 @@ using DreamPoeBot.Loki.Game.Objects;
 using SimpleMapBot.Configuration;
 using SimpleMapBot.GUI;
 using SimpleMapBot.Services;
-using Beasts.Services;
 using log4net;
 
 namespace SimpleMapBot.Core
