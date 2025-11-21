@@ -33,6 +33,7 @@ namespace SimpleMapBot.Core
         // State tracking
         private MapBotState _currentState = MapBotState.Idle;
         private int _tickCount = 0;
+        private int _coroutineTickCount = 0; // Separate counter for coroutine iterations
         private int _stateAttempts = 0;
 
         // Map timer
@@ -216,6 +217,14 @@ namespace SimpleMapBot.Core
                 return;
             }
 
+            // IMPORTANT: Only resume coroutine every 10 ticks to give BeastMover/BeastCombatRoutine time to run
+            // Without this throttling, the coroutine blocks other Logic providers from executing
+            _tickCount++;
+            if (_tickCount % 10 != 0)
+            {
+                return; // Skip this tick - let other systems run
+            }
+
             // Execute coroutine
             try
             {
@@ -238,12 +247,12 @@ namespace SimpleMapBot.Core
 
             while (true)
             {
-                _tickCount++;
+                _coroutineTickCount++;
 
                 // Wait for game
                 if (!LokiPoe.IsInGame)
                 {
-                    if (_tickCount % 200 == 0)
+                    if (_coroutineTickCount % 20 == 0)
                     {
                         Log.Info("[SimpleMapBot] Waiting for game...");
                     }
@@ -253,11 +262,11 @@ namespace SimpleMapBot.Core
 
                 var cwa = LokiPoe.CurrentWorldArea;
 
-                // Log status every 3 seconds
-                if (_tickCount % 100 == 0)
+                // Log status every 3 seconds (every 10 coroutine ticks)
+                if (_coroutineTickCount % 10 == 0)
                 {
-                    Log.InfoFormat("[SimpleMapBot] State: {0}, Area: {1}, Tick: {2}",
-                        _currentState, cwa?.Name ?? "Unknown", _tickCount);
+                    Log.InfoFormat("[SimpleMapBot] State: {0}, Area: {1}, CoroutineTick: {2}",
+                        _currentState, cwa?.Name ?? "Unknown", _coroutineTickCount);
                 }
 
                 // State machine
@@ -271,13 +280,15 @@ namespace SimpleMapBot.Core
                 }
                 else if (cwa != null && cwa.IsTown)
                 {
-                    if (_tickCount % 100 == 0)
+                    if (_coroutineTickCount % 10 == 0)
                     {
                         Log.Info("[SimpleMapBot] In town - go to hideout to run maps");
                     }
                 }
 
-                await Coroutine.Sleep(30); // Small delay between iterations
+                // Sleep longer since Tick() only resumes us every 10 ticks now
+                // This gives BeastMover and BeastCombatRoutine time to run
+                await Coroutine.Sleep(100);
             }
         }
 
@@ -366,7 +377,7 @@ namespace SimpleMapBot.Core
             int monstersRemaining = LokiPoe.InstanceInfo.MonstersRemaining;
 
             // Log monsters remaining and time periodically
-            if (_tickCount % 100 == 0)
+            if (_coroutineTickCount % 10 == 0)
             {
                 if (monstersRemaining <= 0)
                 {
@@ -440,7 +451,7 @@ namespace SimpleMapBot.Core
 
             if (boss != null)
             {
-                if (_tickCount % 50 == 0)
+                if (_coroutineTickCount % 5 == 0)
                 {
                     Log.InfoFormat("[SimpleMapBot] Boss found: {0} at {1:F1}m", boss.Name, boss.Distance);
                 }
@@ -459,7 +470,7 @@ namespace SimpleMapBot.Core
             var bossArena = FindBossArenaEntrance();
             if (bossArena != null)
             {
-                if (_tickCount % 50 == 0)
+                if (_coroutineTickCount % 5 == 0)
                 {
                     Log.InfoFormat("[SimpleMapBot] Boss arena detected: {0} at {1:F1}m", bossArena.Name, bossArena.Distance);
                 }
@@ -480,7 +491,7 @@ namespace SimpleMapBot.Core
             }
 
             // No boss or arena found - explore map to find boss
-            if (_tickCount % 100 == 0)
+            if (_coroutineTickCount % 10 == 0)
             {
                 Log.Debug("[SimpleMapBot] Boss not found, exploring to find boss area");
             }
@@ -545,7 +556,7 @@ namespace SimpleMapBot.Core
             var stash = LokiPoe.ObjectManager.Stash;
             if (stash == null)
             {
-                if (_tickCount % 100 == 0)
+                if (_coroutineTickCount % 10 == 0)
                 {
                     Log.Warn("[SimpleMapBot] Stash not found in hideout");
                 }
@@ -555,7 +566,7 @@ namespace SimpleMapBot.Core
             // Move to stash
             if (stash.Distance > 15f)
             {
-                if (_tickCount % 50 == 0)
+                if (_coroutineTickCount % 5 == 0)
                 {
                     Log.InfoFormat("[SimpleMapBot] Moving to stash ({0:F1}m)", stash.Distance);
                 }
@@ -680,7 +691,7 @@ namespace SimpleMapBot.Core
             // Open map device
             if (!await MapDeviceService.OpenMapDevice())
             {
-                if (_tickCount % 50 == 0)
+                if (_coroutineTickCount % 5 == 0)
                 {
                     Log.Debug("[SimpleMapBot] Opening map device...");
                 }
@@ -959,7 +970,7 @@ namespace SimpleMapBot.Core
             var mover = PlayerMoverManager.Current;
             if (mover == null)
             {
-                if (_tickCount % 100 == 0)
+                if (_coroutineTickCount % 10 == 0)
                 {
                     Log.Error("[SimpleMapBot] Cannot move - no PlayerMover selected! Please select BeastMover in Bot Settings.");
                 }
