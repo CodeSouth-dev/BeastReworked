@@ -598,10 +598,11 @@ namespace SimpleMapBot.Core
                 if (stashInventory == null)
                     continue;
 
-                // Find enabled maps in this tab
+                // Find enabled maps in this tab (using same pattern as Beasts)
                 var maps = stashInventory.Items
                     .Where(item => item != null && item.IsValid &&
-                                  item.Class == "Map" &&
+                                  item.Class != null &&
+                                  item.Class.ToLower().Contains("map") &&
                                   settings.IsMapEnabled(item.Name))
                     .ToList();
 
@@ -630,7 +631,10 @@ namespace SimpleMapBot.Core
             if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
             {
                 var deviceInv = LokiPoe.InGameState.MapDeviceUi.InventoryControl?.Inventory;
-                if (deviceInv?.Items?.Any(i => i != null && i.Class == "Map") == true)
+                if (deviceInv?.Items?.Any(i =>
+                    i != null &&
+                    i.Class != null &&
+                    i.Class.ToLower().Contains("map")) == true)
                 {
                     Log.Info("[SimpleMapBot] Map already in device");
                     _currentState = MapBotState.MapInDevice;
@@ -653,15 +657,27 @@ namespace SimpleMapBot.Core
             var map = GetEnabledMapFromInventory();
             if (map == null)
             {
-                Log.Warn("[SimpleMapBot] No map in inventory");
+                Log.Warn("[SimpleMapBot] No enabled map found in inventory after device opened");
+                _currentState = MapBotState.NeedMap;
+                return;
+            }
+
+            // Verify map is still valid
+            if (!map.IsValid)
+            {
+                Log.Warn("[SimpleMapBot] Map item is no longer valid");
                 _currentState = MapBotState.NeedMap;
                 return;
             }
 
             // Place map
-            Log.InfoFormat("[SimpleMapBot] Placing map: {0}", map.Name);
-            if (await MapDeviceService.PlaceItemInDevice(map))
+            Log.InfoFormat("[SimpleMapBot] Attempting to place map: {0} (LocalId: {1})", map.Name, map.LocalId);
+
+            var placeResult = await MapDeviceService.PlaceItemInDevice(map);
+
+            if (placeResult)
             {
+                Log.InfoFormat("[SimpleMapBot] Successfully placed map: {0}", map.Name);
                 _currentState = MapBotState.MapInDevice;
                 _stateAttempts = 0;
                 await Coroutine.Sleep(300);
@@ -669,10 +685,25 @@ namespace SimpleMapBot.Core
             else
             {
                 _stateAttempts++;
+                Log.WarnFormat("[SimpleMapBot] Failed to place map (attempt {0}/5)", _stateAttempts);
+
                 if (_stateAttempts > 5)
                 {
-                    Log.Error("[SimpleMapBot] Failed to place map after 5 attempts");
+                    Log.Error("[SimpleMapBot] Failed to place map after 5 attempts - resetting to Idle");
                     _stateAttempts = 0;
+                    _currentState = MapBotState.Idle;
+
+                    // Close map device UI
+                    if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
+                    {
+                        LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+                        await Coroutine.Sleep(200);
+                    }
+                }
+                else
+                {
+                    // Wait a bit before retrying
+                    await Coroutine.Sleep(500);
                 }
             }
         }
@@ -865,8 +896,10 @@ namespace SimpleMapBot.Core
             if (item == null)
                 return false;
 
-            // Always pick up currency, maps, and divination cards
-            if (item.Class == "Currency" || item.Class == "Map" || item.Class == "Divination Card")
+            // Always pick up currency, maps, and divination cards (using same pattern as Beasts)
+            if (item.Class == "Currency" ||
+                item.Class == "Divination Card" ||
+                (item.Class != null && item.Class.ToLower().Contains("map")))
                 return true;
 
             // Use poe.ninja filtering if enabled
@@ -914,8 +947,12 @@ namespace SimpleMapBot.Core
                 return null;
             }
 
-            // Debug: Log all maps in inventory
-            var allMaps = inventory.Items.Where(i => i != null && i.Class == "Map").ToList();
+            // Debug: Log all maps in inventory (using same pattern as Beasts)
+            var allMaps = inventory.Items.Where(i =>
+                i != null &&
+                i.Class != null &&
+                i.Class.ToLower().Contains("map")).ToList();
+
             if (allMaps.Count > 0)
             {
                 Log.InfoFormat("[SimpleMapBot] Found {0} map(s) in inventory:", allMaps.Count);
@@ -927,12 +964,14 @@ namespace SimpleMapBot.Core
             }
             else
             {
-                Log.Warn("[SimpleMapBot] No maps found in inventory (checked Class == 'Map')");
+                Log.Warn("[SimpleMapBot] No maps found in inventory");
             }
 
-            // Return first enabled map
+            // Return first enabled map (using same pattern as Beasts)
             return inventory.Items.FirstOrDefault(item =>
-                item != null && item.Class == "Map" &&
+                item != null &&
+                item.Class != null &&
+                item.Class.ToLower().Contains("map") &&
                 settings.IsMapEnabled(item.Name));
         }
 

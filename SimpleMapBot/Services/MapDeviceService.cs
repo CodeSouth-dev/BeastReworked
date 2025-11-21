@@ -99,13 +99,21 @@ namespace SimpleMapBot.Services
         {
             if (item == null || !item.IsValid)
             {
-                Log.Error("[MapDeviceService] Invalid item");
+                Log.ErrorFormat("[MapDeviceService] Invalid item - item null: {0}, valid: {1}",
+                    item == null, item?.IsValid ?? false);
                 return false;
             }
+
+            // Log item details
+            Log.InfoFormat("[MapDeviceService] Placing item: Name={0}, Class={1}, LocalId={2}, Position=({3},{4})",
+                item.Name, item.Class, item.LocalId, item.LocationTopLeft.X, item.LocationTopLeft.Y);
 
             // Check both UIs - use whichever is open
             bool mapDeviceOpen = LokiPoe.InGameState.MapDeviceUi.IsOpened;
             bool masterDeviceOpen = LokiPoe.InGameState.MasterDeviceUi.IsOpened;
+
+            Log.InfoFormat("[MapDeviceService] UI status - MapDevice: {0}, MasterDevice: {1}",
+                mapDeviceOpen, masterDeviceOpen);
 
             if (!mapDeviceOpen && !masterDeviceOpen)
             {
@@ -120,25 +128,39 @@ namespace SimpleMapBot.Services
 
             if (deviceControl == null)
             {
-                Log.Error("[MapDeviceService] Cannot access map device inventory");
+                Log.Error("[MapDeviceService] Cannot access map device inventory control");
                 return false;
             }
 
             var oldCount = deviceControl.Inventory?.Items?.Count ?? 0;
             Log.InfoFormat("[MapDeviceService] Current device item count: {0}", oldCount);
 
+            // Log existing items in device
+            if (deviceControl.Inventory?.Items != null && deviceControl.Inventory.Items.Count > 0)
+            {
+                Log.Info("[MapDeviceService] Items currently in device:");
+                foreach (var existingItem in deviceControl.Inventory.Items)
+                {
+                    if (existingItem != null)
+                    {
+                        Log.InfoFormat("[MapDeviceService]   - {0} (Class: {1})",
+                            existingItem.Name, existingItem.Class);
+                    }
+                }
+            }
+
             LokiPoe.ProcessHookManager.ClearAllKeyStates();
+            await Coroutine.Sleep(100); // Small delay for UI stability
 
             // Use FastMove directly on the device control to place item from inventory
-            // This should work similar to how stashing works
             Log.InfoFormat("[MapDeviceService] Calling FastMove on device for item: {0} (LocalId: {1})",
                 item.Name, item.LocalId);
             var result = deviceControl.FastMove(item.LocalId);
-            Log.InfoFormat("[MapDeviceService] Device FastMove result: {0}", result);
+            Log.InfoFormat("[MapDeviceService] FastMove result: {0}", result);
 
             if (result != FastMoveResult.None)
             {
-                Log.ErrorFormat("[MapDeviceService] Failed to place item in device: {0}", result);
+                Log.ErrorFormat("[MapDeviceService] FastMove failed with result: {0}", result);
                 return false;
             }
 
