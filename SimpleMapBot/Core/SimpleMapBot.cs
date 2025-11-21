@@ -40,6 +40,11 @@ namespace SimpleMapBot.Core
         private readonly Stopwatch _mapTimer = new Stopwatch();
         private bool _mapTimerStarted = false;
 
+        // Exploration tracking
+        private Vector2i _explorationTarget = Vector2i.Zero;
+        private Vector2i _lastPosition = Vector2i.Zero;
+        private int _stuckCounter = 0;
+
         #region IAuthored
         public string Name => "SimpleMapBot";
         public string Description => "Simple map running bot - stash to map device workflow, looting, stashing, boss seeking";
@@ -370,6 +375,7 @@ namespace SimpleMapBot.Core
                 _currentState = MapBotState.NeedToStash;
                 _mapTimer.Reset();
                 _mapTimerStarted = false;
+                ResetExplorationState();
                 return;
             }
 
@@ -412,6 +418,7 @@ namespace SimpleMapBot.Core
                 _currentState = MapBotState.NeedToStash;
                 _mapTimer.Reset();
                 _mapTimerStarted = false;
+                ResetExplorationState();
                 return;
             }
 
@@ -432,12 +439,58 @@ namespace SimpleMapBot.Core
                 _currentState = MapBotState.NeedToStash;
                 _mapTimer.Reset();
                 _mapTimerStarted = false;
+                ResetExplorationState();
                 return;
             }
 
-            // Normal mapping - loot nearby items
-            // BeastMover and BeastCombatRoutine handle exploration and combat automatically
+            // Normal mapping - explore and loot
+            // First try looting nearby items
             await TryLootNearbyItems();
+
+            // Then explore the map using BeastMover
+            var myPos = LokiPoe.MyPosition;
+
+            // Check if stuck
+            if (_lastPosition != Vector2i.Zero && myPos.Distance(_lastPosition) < 5)
+            {
+                _stuckCounter++;
+                if (_stuckCounter > 5)
+                {
+                    Log.Debug("[SimpleMapBot] Stuck detected, picking new exploration point");
+                    _explorationTarget = Vector2i.Zero;
+                    _stuckCounter = 0;
+                }
+            }
+            else
+            {
+                _stuckCounter = 0;
+            }
+            _lastPosition = myPos;
+
+            // Pick new exploration target if needed
+            if (_explorationTarget == Vector2i.Zero || myPos.Distance(_explorationTarget) < 20)
+            {
+                // Pick random point within 100 units
+                var randomOffset = new Vector2i(
+                    LokiPoe.Random.Next(-100, 100),
+                    LokiPoe.Random.Next(-100, 100)
+                );
+                _explorationTarget = myPos + randomOffset;
+
+                if (_coroutineTickCount % 5 == 0)
+                {
+                    Log.InfoFormat("[SimpleMapBot] New exploration target: {0} (distance: {1:F1})",
+                        _explorationTarget, myPos.Distance(_explorationTarget));
+                }
+            }
+
+            // Move towards exploration point using BeastMover
+            if (!SafeMove(_explorationTarget))
+            {
+                // SafeMove failed - BeastMover not available or pathfinding failed
+                // Pick a new target next iteration
+                _explorationTarget = Vector2i.Zero;
+            }
         }
 
         private async Task SeekBoss()
@@ -979,6 +1032,16 @@ namespace SimpleMapBot.Core
 
             mover.MoveTowards(position);
             return true;
+        }
+
+        /// <summary>
+        /// Reset exploration state when leaving a map
+        /// </summary>
+        private void ResetExplorationState()
+        {
+            _explorationTarget = Vector2i.Zero;
+            _lastPosition = Vector2i.Zero;
+            _stuckCounter = 0;
         }
 
         private Item GetEnabledMapFromInventory()
