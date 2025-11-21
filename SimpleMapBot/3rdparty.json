@@ -4,11 +4,11 @@
     "Core/SimpleMapBot.cs",
     "Configuration/SimpleMapBotSettings.cs",
     "GUI/SimpleMapBotGui.cs",
-    "Services/PoeNinjaService.cs"
+    "Services/PoeNinjaService.cs",
+    "Services/MapDeviceService.cs",
+    "Services/PortalService.cs"
   ],
-  "Dependencies": [
-    "BeastRoutine"
-  ],
+  "Dependencies": [],
   "References": [
     "System.Net.Http.dll"
   ]
