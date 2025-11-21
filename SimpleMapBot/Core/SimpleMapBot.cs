@@ -653,15 +653,27 @@ namespace SimpleMapBot.Core
             var map = GetEnabledMapFromInventory();
             if (map == null)
             {
-                Log.Warn("[SimpleMapBot] No map in inventory");
+                Log.Warn("[SimpleMapBot] No enabled map found in inventory after device opened");
+                _currentState = MapBotState.NeedMap;
+                return;
+            }
+
+            // Verify map is still valid
+            if (!map.IsValid)
+            {
+                Log.Warn("[SimpleMapBot] Map item is no longer valid");
                 _currentState = MapBotState.NeedMap;
                 return;
             }
 
             // Place map
-            Log.InfoFormat("[SimpleMapBot] Placing map: {0}", map.Name);
-            if (await MapDeviceService.PlaceItemInDevice(map))
+            Log.InfoFormat("[SimpleMapBot] Attempting to place map: {0} (LocalId: {1})", map.Name, map.LocalId);
+
+            var placeResult = await MapDeviceService.PlaceItemInDevice(map);
+
+            if (placeResult)
             {
+                Log.InfoFormat("[SimpleMapBot] Successfully placed map: {0}", map.Name);
                 _currentState = MapBotState.MapInDevice;
                 _stateAttempts = 0;
                 await Coroutine.Sleep(300);
@@ -669,10 +681,25 @@ namespace SimpleMapBot.Core
             else
             {
                 _stateAttempts++;
+                Log.WarnFormat("[SimpleMapBot] Failed to place map (attempt {0}/5)", _stateAttempts);
+
                 if (_stateAttempts > 5)
                 {
-                    Log.Error("[SimpleMapBot] Failed to place map after 5 attempts");
+                    Log.Error("[SimpleMapBot] Failed to place map after 5 attempts - resetting to Idle");
                     _stateAttempts = 0;
+                    _currentState = MapBotState.Idle;
+
+                    // Close map device UI
+                    if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
+                    {
+                        LokiPoe.Input.SimulateKeyEvent(LokiPoe.Input.Binding.close_panels, true, false, false);
+                        await Coroutine.Sleep(200);
+                    }
+                }
+                else
+                {
+                    // Wait a bit before retrying
+                    await Coroutine.Sleep(500);
                 }
             }
         }
