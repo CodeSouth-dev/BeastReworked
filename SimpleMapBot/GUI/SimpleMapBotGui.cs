@@ -27,6 +27,7 @@ namespace SimpleMapBot.GUI
         private CheckBox cbWastepool;
         private CheckBox cbBeach;
         private CheckBox cbDunes;
+        private CheckBox cbShipyard;
 
         // Scarab dropdowns
         private ComboBox cmbScarab1;
@@ -170,6 +171,7 @@ namespace SimpleMapBot.GUI
             cbWastepool = CreateCheckBox("Wastepool");
             cbBeach = CreateCheckBox("Beach");
             cbDunes = CreateCheckBox("Dunes");
+            cbShipyard = CreateCheckBox("Shipyard");
 
             // Add to left column
             leftPanel.Children.Add(cbCrater);
@@ -188,6 +190,7 @@ namespace SimpleMapBot.GUI
             rightPanel.Children.Add(cbWastepool);
             rightPanel.Children.Add(cbBeach);
             rightPanel.Children.Add(cbDunes);
+            rightPanel.Children.Add(cbShipyard);
 
             Grid.SetColumn(leftPanel, 0);
             Grid.SetColumn(rightPanel, 1);
@@ -322,6 +325,7 @@ namespace SimpleMapBot.GUI
             cbWastepool.IsChecked = settings.EnableWastepool;
             cbBeach.IsChecked = settings.EnableBeach;
             cbDunes.IsChecked = settings.EnableDunes;
+            cbShipyard.IsChecked = settings.EnableShipyard;
 
             // Scarab dropdowns
             cmbScarab1.SelectedItem = settings.ScarabSlot1;
@@ -361,6 +365,7 @@ namespace SimpleMapBot.GUI
             settings.EnableWastepool = cbWastepool.IsChecked ?? false;
             settings.EnableBeach = cbBeach.IsChecked ?? false;
             settings.EnableDunes = cbDunes.IsChecked ?? false;
+            settings.EnableShipyard = cbShipyard.IsChecked ?? false;
 
             // Save scarab dropdowns
             settings.ScarabSlot1 = cmbScarab1.SelectedItem?.ToString() ?? "None";

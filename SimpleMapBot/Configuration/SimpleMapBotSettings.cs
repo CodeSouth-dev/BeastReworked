@@ -179,6 +179,10 @@ namespace SimpleMapBot.Configuration
         [DefaultValue(true)]
         [Description("Run Dunes maps")]
         public bool EnableDunes { get; set; } = true;
+
+        [DefaultValue(true)]
+        [Description("Run Shipyard maps")]
+        public bool EnableShipyard { get; set; } = true;
         #endregion
 
         #region Scarab Selection
@@ -235,6 +239,7 @@ namespace SimpleMapBot.Configuration
             if (EnableWastepool) maps.Add("Wastepool");
             if (EnableBeach) maps.Add("Beach");
             if (EnableDunes) maps.Add("Dunes");
+            if (EnableShipyard) maps.Add("Shipyard");
 
             return maps;
         }
@@ -280,6 +285,7 @@ namespace SimpleMapBot.Configuration
             if (normalized.Contains("wastepool")) return EnableWastepool;
             if (normalized.Contains("beach")) return EnableBeach;
             if (normalized.Contains("dunes")) return EnableDunes;
+            if (normalized.Contains("shipyard")) return EnableShipyard;
 
             return false; // Unknown map, don't run it
         }
