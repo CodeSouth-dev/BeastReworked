@@ -598,10 +598,11 @@ namespace SimpleMapBot.Core
                 if (stashInventory == null)
                     continue;
 
-                // Find enabled maps in this tab
+                // Find enabled maps in this tab (using same pattern as Beasts)
                 var maps = stashInventory.Items
                     .Where(item => item != null && item.IsValid &&
-                                  item.Class == "Map" &&
+                                  item.Class != null &&
+                                  item.Class.ToLower().Contains("map") &&
                                   settings.IsMapEnabled(item.Name))
                     .ToList();
 
@@ -630,7 +631,10 @@ namespace SimpleMapBot.Core
             if (LokiPoe.InGameState.MapDeviceUi.IsOpened)
             {
                 var deviceInv = LokiPoe.InGameState.MapDeviceUi.InventoryControl?.Inventory;
-                if (deviceInv?.Items?.Any(i => i != null && i.Class == "Map") == true)
+                if (deviceInv?.Items?.Any(i =>
+                    i != null &&
+                    i.Class != null &&
+                    i.Class.ToLower().Contains("map")) == true)
                 {
                     Log.Info("[SimpleMapBot] Map already in device");
                     _currentState = MapBotState.MapInDevice;
@@ -892,8 +896,10 @@ namespace SimpleMapBot.Core
             if (item == null)
                 return false;
 
-            // Always pick up currency, maps, and divination cards
-            if (item.Class == "Currency" || item.Class == "Map" || item.Class == "Divination Card")
+            // Always pick up currency, maps, and divination cards (using same pattern as Beasts)
+            if (item.Class == "Currency" ||
+                item.Class == "Divination Card" ||
+                (item.Class != null && item.Class.ToLower().Contains("map")))
                 return true;
 
             // Use poe.ninja filtering if enabled
@@ -941,8 +947,12 @@ namespace SimpleMapBot.Core
                 return null;
             }
 
-            // Debug: Log all maps in inventory
-            var allMaps = inventory.Items.Where(i => i != null && i.Class == "Map").ToList();
+            // Debug: Log all maps in inventory (using same pattern as Beasts)
+            var allMaps = inventory.Items.Where(i =>
+                i != null &&
+                i.Class != null &&
+                i.Class.ToLower().Contains("map")).ToList();
+
             if (allMaps.Count > 0)
             {
                 Log.InfoFormat("[SimpleMapBot] Found {0} map(s) in inventory:", allMaps.Count);
@@ -954,12 +964,14 @@ namespace SimpleMapBot.Core
             }
             else
             {
-                Log.Warn("[SimpleMapBot] No maps found in inventory (checked Class == 'Map')");
+                Log.Warn("[SimpleMapBot] No maps found in inventory");
             }
 
-            // Return first enabled map
+            // Return first enabled map (using same pattern as Beasts)
             return inventory.Items.FirstOrDefault(item =>
-                item != null && item.Class == "Map" &&
+                item != null &&
+                item.Class != null &&
+                item.Class.ToLower().Contains("map") &&
                 settings.IsMapEnabled(item.Name));
         }
 
