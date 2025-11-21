@@ -366,25 +366,33 @@ namespace SimpleMapBot.Core
             int monstersRemaining = LokiPoe.InstanceInfo.MonstersRemaining;
 
             // Log monsters remaining and time periodically
-            if (_tickCount % 100 == 0 && monstersRemaining >= 0)
+            if (_tickCount % 100 == 0)
             {
-                if (monstersRemaining == 0)
+                if (monstersRemaining <= 0)
                 {
                     Log.InfoFormat("[SimpleMapBot] Status: Map Completed | Time: {0:F0}s / {1}s",
                         _mapTimer.Elapsed.TotalSeconds,
                         SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
                 }
-                else
+                else if (monstersRemaining > 0)
                 {
                     Log.InfoFormat("[SimpleMapBot] Monsters remaining: {0} | Time: {1:F0}s / {2}s",
                         monstersRemaining,
                         _mapTimer.Elapsed.TotalSeconds,
                         SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
                 }
+                else
+                {
+                    Log.InfoFormat("[SimpleMapBot] Monsters remaining: UNKNOWN ({0}) | Time: {1:F0}s / {2}s",
+                        monstersRemaining,
+                        _mapTimer.Elapsed.TotalSeconds,
+                        SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
+                }
             }
 
-            // Map complete - boss killed (MonstersRemaining = 0)
-            if (monstersRemaining == 0)
+            // Map complete - boss killed (MonstersRemaining <= 0)
+            // Note: Game shows "Map Complete" when boss dies, MonstersRemaining becomes 0 or -1
+            if (monstersRemaining <= 0)
             {
                 Log.InfoFormat("[SimpleMapBot] ===== MAP COMPLETE (Boss Killed) - Time: {0:F0}s =====",
                     _mapTimer.Elapsed.TotalSeconds);
@@ -416,7 +424,8 @@ namespace SimpleMapBot.Core
                 return;
             }
 
-            // Normal mapping - loot items
+            // Normal mapping - loot nearby items
+            // BeastMover and BeastCombatRoutine handle exploration and combat automatically
             await TryLootNearbyItems();
         }
 
