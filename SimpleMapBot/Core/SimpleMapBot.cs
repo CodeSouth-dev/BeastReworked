@@ -283,6 +283,20 @@ namespace SimpleMapBot.Core
 
         private async Task HandleHideoutState()
         {
+            // IMPORTANT: Check if portals already exist (from previous map or manual opening)
+            // This prevents wasting maps if bot is restarted while portals are still up
+            if (_currentState == MapBotState.Idle || _currentState == MapBotState.NeedMap)
+            {
+                var existingPortal = MapDeviceService.FindMapPortal();
+                if (existingPortal != null && existingPortal.IsTargetable)
+                {
+                    Log.Info("[SimpleMapBot] ===== EXISTING PORTALS DETECTED =====");
+                    Log.Info("[SimpleMapBot] Found active map portals - entering instead of opening new map");
+                    _currentState = MapBotState.WaitingForPortal;
+                    return;
+                }
+            }
+
             switch (_currentState)
             {
                 case MapBotState.Idle:
@@ -319,6 +333,17 @@ namespace SimpleMapBot.Core
             {
                 _mapTimer.Restart();
                 _mapTimerStarted = true;
+
+                // Check if we started mid-map (state is Idle when bot was just started)
+                if (_currentState == MapBotState.Idle)
+                {
+                    Log.Info("[SimpleMapBot] ===== STARTED MID-MAP =====");
+                    Log.InfoFormat("[SimpleMapBot] Bot started while already in map: {0}",
+                        LokiPoe.CurrentWorldArea?.Name ?? "Unknown");
+                    Log.Info("[SimpleMapBot] Continuing from current position - looting and exploring");
+                    _currentState = MapBotState.InMap;
+                }
+
                 Log.InfoFormat("[SimpleMapBot] Map timer started - {0} second limit",
                     SimpleMapBotSettings.Instance.MaxMapTimeSeconds);
             }
