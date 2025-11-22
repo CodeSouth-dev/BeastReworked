@@ -285,9 +285,10 @@ namespace BeastMover
             // Fall back to basic movement
             if (BeastMoverSettings.Instance.DebugLogging)
             {
-                Log.InfoFormat("[BeastMover] Using basic movement at distance {0:F1}m", myPosition.Distance(point));
+                Log.InfoFormat("[BeastMover] Using basic movement to waypoint {0:F1}m, destination {1:F1}m",
+                    myPosition.Distance(point), myPosition.Distance(position));
             }
-            return BasicMove(myPosition, point);
+            return BasicMove(myPosition, point, position);
         }
 
         /// <summary>
@@ -513,7 +514,10 @@ namespace BeastMover
         /// <summary>
         /// Basic movement using default move skill
         /// </summary>
-        private bool BasicMove(Vector2i myPosition, Vector2i point)
+        /// <param name="myPosition">Current position</param>
+        /// <param name="point">Next waypoint to move to</param>
+        /// <param name="finalDestination">Final destination (used to decide single-click vs hold-move)</param>
+        private bool BasicMove(Vector2i myPosition, Vector2i point, Vector2i finalDestination)
         {
             var move = LokiPoe.InGameState.SkillBarHud.LastBoundMoveSkill;
             if (move == null)
@@ -523,20 +527,25 @@ namespace BeastMover
                 return false;
             }
 
+            // Decide between single-click vs hold-move based on distance to FINAL destination, not next waypoint
+            var distanceToDestination = myPosition.Distance(finalDestination);
+            var useHoldMove = distanceToDestination > BeastMoverSettings.Instance.SingleUseDistance;
+
             // Use the bound move skill - check if key is already pressed
             if ((LokiPoe.ProcessHookManager.GetKeyState(move.BoundKeys.Last()) & 0x8000) != 0 &&
-                LokiPoe.Me.HasCurrentAction && LokiPoe.Me.CurrentAction.Skill != null && 
+                LokiPoe.Me.HasCurrentAction && LokiPoe.Me.CurrentAction.Skill != null &&
                 LokiPoe.Me.CurrentAction.Skill.InternalId.Equals("Move"))
             {
-                // Key already pressed - for short distances, use single UseAt
-                if (myPosition.Distance(point) <= BeastMoverSettings.Instance.SingleUseDistance)
+                // Key already pressed
+                if (!useHoldMove)
                 {
+                    // Close to destination - use single click to finish
                     LokiPoe.ProcessHookManager.ClearAllKeyStates();
                     LokiPoe.InGameState.SkillBarHud.UseAt(move.Slots.Last(), false, point);
                 }
                 else
                 {
-                    // For longer distances, just update mouse position for smooth movement
+                    // Far from destination - just update mouse position for smooth movement
                     MouseManager.SetMousePos("BeastMover.MoveTowards", point, false);
                 }
             }
@@ -544,18 +553,18 @@ namespace BeastMover
             {
                 // Key not pressed - clear all keys and issue move command
                 LokiPoe.ProcessHookManager.ClearAllKeyStates();
-                if (myPosition.Distance(point) <= BeastMoverSettings.Instance.SingleUseDistance)
+                if (!useHoldMove)
                 {
-                    // Short distance - single click
+                    // Close to destination - single click
                     LokiPoe.InGameState.SkillBarHud.UseAt(move.Slots.Last(), false, point);
                 }
                 else
                 {
-                    // Long distance - press and hold
+                    // Far from destination - press and hold for smooth long-distance movement
                     LokiPoe.InGameState.SkillBarHud.BeginUseAt(move.Slots.Last(), false, point);
                 }
             }
-            
+
             return true;
         }
 
