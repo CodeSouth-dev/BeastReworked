@@ -22,6 +22,7 @@ namespace BeastMover
     public class BeastMover : IPlayerMover
     {
         public static readonly ILog Log = Logger.GetLoggerInstanceForType();
+        private BeastMoverGui _gui;
 
         #region Implementation of IAuthored
         public string Name => "BeastMover";
@@ -70,7 +71,7 @@ namespace BeastMover
 
         public UserControl Control
         {
-            get { return null; } // GUI disabled - use JSON settings
+            get { return _gui ?? (_gui = new BeastMoverGui()); }
         }
         #endregion
 

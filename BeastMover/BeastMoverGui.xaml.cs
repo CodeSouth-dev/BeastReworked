@@ -10,8 +10,6 @@ namespace BeastMover
         public BeastMoverGui()
         {
             InitializeComponent();
-            DataContext = BeastMoverSettings.Instance;
         }
     }
 }
-
