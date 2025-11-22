@@ -344,6 +344,22 @@ namespace SimpleMapBot.Core
 
         private async Task HandleMapState()
         {
+            var cwa = LokiPoe.CurrentWorldArea;
+
+            // Safety check: If we're actually in hideout, reset state
+            // This happens if we entered a portal that led back to hideout instead of to map
+            if (cwa != null && cwa.IsHideoutArea)
+            {
+                Log.Warn("[SimpleMapBot] ===== UNEXPECTED: In hideout but state was InMap =====");
+                Log.Info("[SimpleMapBot] Probably entered exit portal instead of entrance portal");
+                Log.Info("[SimpleMapBot] Resetting to hideout state");
+                _currentState = MapBotState.InHideout;
+                _mapTimer.Reset();
+                _mapTimerStarted = false;
+                ResetExplorationState();
+                return;
+            }
+
             // Start map timer on first entry
             if (!_mapTimerStarted)
             {
@@ -1142,11 +1158,18 @@ namespace SimpleMapBot.Core
 
                 for (int i = 0; i < 30; i++)
                 {
+                    // Find portal that leads TO hideout/town (exit portal)
+                    // Filter out portals that lead back to the map
                     var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
-                        .FirstOrDefault(p => p.Distance < 20);
+                        .Where(p => p.Distance < 20 &&
+                                   p.LeadsTo != null &&
+                                   (p.LeadsTo.IsHideoutArea || p.LeadsTo.IsTown))
+                        .FirstOrDefault();
 
                     if (portal != null)
                     {
+                        Log.InfoFormat("[SimpleMapBot] Found exit portal leading to: {0}",
+                            portal.LeadsTo?.Name ?? "Unknown");
                         if (await Coroutines.InteractWith(portal))
                         {
                             await Coroutine.Sleep(2000);
@@ -1155,6 +1178,8 @@ namespace SimpleMapBot.Core
                     }
                     await Coroutine.Sleep(100);
                 }
+
+                Log.Warn("[SimpleMapBot] Failed to find/enter exit portal after 3 seconds");
             }
         }
         #endregion
