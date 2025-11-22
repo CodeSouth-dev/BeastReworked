@@ -338,22 +338,25 @@ namespace BeastMover
         /// </summary>
         private int GetSkillMaxRange(string skillName)
         {
+            var settings = BeastMoverSettings.Instance;
             switch (skillName)
             {
                 case "Dash":
+                    return settings.DashMaxDist;
                 case "Frostblink":
-                    return 30;
+                    return settings.FrostblinkMaxDist;
                 case "Flame Dash":
-                    return 45;
+                    return settings.FlameDashMaxDist;
                 case "Whirling Blades":
+                    return settings.WhirlingBladesMaxDist;
                 case "Shield Charge":
-                    return 50;
+                    return settings.ShieldChargeMaxDist;
                 case "Leap Slam":
-                    return 55;
+                    return settings.LeapSlamMaxDist;
                 case "Lightning Warp":
-                    return 60;
+                    return settings.LightningWarpMaxDist;
                 case "Blink Arrow":
-                    return 65;
+                    return settings.BlinkArrowMaxDist;
                 default:
                     return 40;
             }
@@ -364,10 +367,25 @@ namespace BeastMover
         /// </summary>
         private int GetSkillMinRange(string skillName)
         {
+            var settings = BeastMoverSettings.Instance;
             switch (skillName)
             {
+                case "Dash":
+                    return settings.DashMinDist;
+                case "Frostblink":
+                    return settings.FrostblinkMinDist;
+                case "Flame Dash":
+                    return settings.FlameDashMinDist;
+                case "Whirling Blades":
+                    return settings.WhirlingBladesMinDist;
+                case "Shield Charge":
+                    return settings.ShieldChargeMinDist;
+                case "Leap Slam":
+                    return settings.LeapSlamMinDist;
                 case "Lightning Warp":
-                    return 20;
+                    return settings.LightningWarpMinDist;
+                case "Blink Arrow":
+                    return settings.BlinkArrowMinDist;
                 default:
                     return 10;
             }
@@ -378,36 +396,46 @@ namespace BeastMover
         /// </summary>
         private int FindReadyMovementSkill()
         {
+            var settings = BeastMoverSettings.Instance;
+
             // List of movement skills to check (in priority order)
-            var movementSkills = new[] {
-                "Whirling Blades",
-                "Frostblink",
-                "Flame Dash",
-                "Shield Charge",
-                "Leap Slam",
-                "Dash",
-                "Lightning Warp",
-                "Blink Arrow",
-                "Phase Run",
-                "Bodyswap"
+            var movementSkills = new Dictionary<string, bool>
+            {
+                {"Whirling Blades", settings.EnableWhirlingBlades},
+                {"Frostblink", settings.EnableFrostblink},
+                {"Flame Dash", settings.EnableFlameDash},
+                {"Shield Charge", settings.EnableShieldCharge},
+                {"Leap Slam", settings.EnableLeapSlam},
+                {"Dash", settings.EnableDash},
+                {"Lightning Warp", settings.EnableLightningWarp},
+                {"Blink Arrow", settings.EnableBlinkArrow}
             };
 
-            // Check each skill if it's available and ready
-            foreach (var skillName in movementSkills)
+            // Check each skill if it's available, enabled, and ready
+            foreach (var kvp in movementSkills)
             {
-                var skill = LokiPoe.Me.AvailableSkills.FirstOrDefault(s => 
+                var skillName = kvp.Key;
+                var isEnabled = kvp.Value;
+
+                // Skip if skill is disabled in settings
+                if (!isEnabled) continue;
+
+                var skill = LokiPoe.Me.AvailableSkills.FirstOrDefault(s =>
                     s.Name == skillName && s.IsOnSkillBar);
-                
+
                 if (skill == null) continue;
 
                 var slot = skill.Slot;
                 var skillBarSkill = LokiPoe.InGameState.SkillBarHud.Slot(slot);
-                
+
+                // Calculate mana requirement
+                var minManaPercent = settings.UseBloodMagic ? 0 : (settings.MoveMinMana * 100 / LokiPoe.Me.MaxMana);
+
                 // Check if skill can be used
                 if (skillBarSkill != null &&
                     !skillBarSkill.IsOnCooldown &&
                     skillBarSkill.CanUse() &&
-                    LokiPoe.Me.ManaPercent > 10) // Basic mana check
+                    (settings.UseBloodMagic || LokiPoe.Me.ManaPercent > minManaPercent))
                 {
                     return slot;
                 }

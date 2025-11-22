@@ -54,13 +54,6 @@ namespace BeastMover
             ));
 
             mainPanel.Children.Add(CreateCheckBoxSetting(
-                "Allow Portal Movement",
-                "Allow using movement skills through portals",
-                () => settings.AllowPortalMovement,
-                v => settings.AllowPortalMovement = v
-            ));
-
-            mainPanel.Children.Add(CreateCheckBoxSetting(
                 "Ignore Mobs",
                 "Ignore mobs when calculating movement path",
                 () => settings.IgnoreMobs,
@@ -72,6 +65,104 @@ namespace BeastMover
                 "Use life instead of mana for movement skills",
                 () => settings.UseBloodMagic,
                 v => settings.UseBloodMagic = v
+            ));
+
+            mainPanel.Children.Add(CreateCheckBoxSetting(
+                "Allow Portal Movement",
+                "Prevents accidentally entering portals when disabled (recommended)",
+                () => settings.AllowPortalMovement,
+                v => settings.AllowPortalMovement = v
+            ));
+
+            // Movement Skills Section
+            mainPanel.Children.Add(CreateSectionHeader("Movement Skills"));
+
+            // Whirling Blades
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Whirling Blades",
+                () => settings.EnableWhirlingBlades,
+                v => settings.EnableWhirlingBlades = v,
+                () => settings.WhirlingBladesMinDist,
+                v => settings.WhirlingBladesMinDist = (int)v,
+                () => settings.WhirlingBladesMaxDist,
+                v => settings.WhirlingBladesMaxDist = (int)v
+            ));
+
+            // Flame Dash
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Flame Dash",
+                () => settings.EnableFlameDash,
+                v => settings.EnableFlameDash = v,
+                () => settings.FlameDashMinDist,
+                v => settings.FlameDashMinDist = (int)v,
+                () => settings.FlameDashMaxDist,
+                v => settings.FlameDashMaxDist = (int)v
+            ));
+
+            // Shield Charge
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Shield Charge",
+                () => settings.EnableShieldCharge,
+                v => settings.EnableShieldCharge = v,
+                () => settings.ShieldChargeMinDist,
+                v => settings.ShieldChargeMinDist = (int)v,
+                () => settings.ShieldChargeMaxDist,
+                v => settings.ShieldChargeMaxDist = (int)v
+            ));
+
+            // Leap Slam
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Leap Slam",
+                () => settings.EnableLeapSlam,
+                v => settings.EnableLeapSlam = v,
+                () => settings.LeapSlamMinDist,
+                v => settings.LeapSlamMinDist = (int)v,
+                () => settings.LeapSlamMaxDist,
+                v => settings.LeapSlamMaxDist = (int)v
+            ));
+
+            // Dash
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Dash",
+                () => settings.EnableDash,
+                v => settings.EnableDash = v,
+                () => settings.DashMinDist,
+                v => settings.DashMinDist = (int)v,
+                () => settings.DashMaxDist,
+                v => settings.DashMaxDist = (int)v
+            ));
+
+            // Frostblink
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Frostblink",
+                () => settings.EnableFrostblink,
+                v => settings.EnableFrostblink = v,
+                () => settings.FrostblinkMinDist,
+                v => settings.FrostblinkMinDist = (int)v,
+                () => settings.FrostblinkMaxDist,
+                v => settings.FrostblinkMaxDist = (int)v
+            ));
+
+            // Lightning Warp
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Lightning Warp",
+                () => settings.EnableLightningWarp,
+                v => settings.EnableLightningWarp = v,
+                () => settings.LightningWarpMinDist,
+                v => settings.LightningWarpMinDist = (int)v,
+                () => settings.LightningWarpMaxDist,
+                v => settings.LightningWarpMaxDist = (int)v
+            ));
+
+            // Blink Arrow
+            mainPanel.Children.Add(CreateSkillSetting(
+                "Blink Arrow",
+                () => settings.EnableBlinkArrow,
+                v => settings.EnableBlinkArrow = v,
+                () => settings.BlinkArrowMinDist,
+                v => settings.BlinkArrowMinDist = (int)v,
+                () => settings.BlinkArrowMaxDist,
+                v => settings.BlinkArrowMaxDist = (int)v
             ));
 
             // Stuck Detection Section
@@ -122,12 +213,15 @@ namespace BeastMover
 
             var infoText = new TextBlock
             {
-                Text = "ℹ Recommended Settings:\n" +
-                       "• Move Range: 30-35 for normal movement\n" +
-                       "• Single Use Distance: 25-35 to trigger skills\n" +
-                       "• Move Min Mana: 20-40 to preserve mana\n" +
-                       "• Stuck Threshold: 3-5 for balanced detection\n" +
-                       "• Path Refresh: 500-1000ms for performance",
+                Text = "ℹ How to Use:\n" +
+                       "• Enable movement skills you have on your skillbar\n" +
+                       "• Set Min/Max distance ranges for each skill\n" +
+                       "• Lower Min = skill triggers sooner (more often)\n" +
+                       "• Higher Max = skill can travel further\n" +
+                       "• Keep 'Allow Portal Movement' OFF to avoid leaving maps\n\n" +
+                       "Recommended:\n" +
+                       "• Move Range: 30-35 | Single Use: 25-35\n" +
+                       "• Min Mana: 20-40 | Stuck Threshold: 3-5",
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = Brushes.White
             };
@@ -197,6 +291,85 @@ namespace BeastMover
             checkBox.Unchecked += (s, e) => setter(false);
 
             return checkBox;
+        }
+
+        private UIElement CreateSkillSetting(string skillName,
+            Func<bool> enableGetter, Action<bool> enableSetter,
+            Func<int> minGetter, Action<double> minSetter,
+            Func<int> maxGetter, Action<double> maxSetter)
+        {
+            var panel = new StackPanel { Margin = new Thickness(0, 8, 0, 8) };
+
+            // Enable checkbox
+            var enableCheckbox = new CheckBox
+            {
+                Content = $"Enable {skillName}",
+                IsChecked = enableGetter(),
+                FontWeight = FontWeights.Bold
+            };
+            enableCheckbox.Checked += (s, e) => enableSetter(true);
+            enableCheckbox.Unchecked += (s, e) => enableSetter(false);
+            panel.Children.Add(enableCheckbox);
+
+            // Min/Max distance panel
+            var distPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(20, 5, 0, 0)
+            };
+
+            // Min distance
+            distPanel.Children.Add(new TextBlock
+            {
+                Text = "Min:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 5, 0),
+                Width = 35
+            });
+
+            var minNumeric = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 120,
+                Interval = 1,
+                Value = minGetter(),
+                Width = 80,
+                Margin = new Thickness(0, 0, 15, 0)
+            };
+            minNumeric.ValueChanged += (s, e) =>
+            {
+                if (minNumeric.Value.HasValue)
+                    minSetter(minNumeric.Value.Value);
+            };
+            distPanel.Children.Add(minNumeric);
+
+            // Max distance
+            distPanel.Children.Add(new TextBlock
+            {
+                Text = "Max:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 5, 0),
+                Width = 35
+            });
+
+            var maxNumeric = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 120,
+                Interval = 1,
+                Value = maxGetter(),
+                Width = 80
+            };
+            maxNumeric.ValueChanged += (s, e) =>
+            {
+                if (maxNumeric.Value.HasValue)
+                    maxSetter(maxNumeric.Value.Value);
+            };
+            distPanel.Children.Add(maxNumeric);
+
+            panel.Children.Add(distPanel);
+
+            return panel;
         }
     }
 }
