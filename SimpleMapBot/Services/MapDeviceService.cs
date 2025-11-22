@@ -324,16 +324,13 @@ namespace SimpleMapBot.Services
         {
             try
             {
-                // When in hideout, find portals that lead TO maps (entrance portals)
-                // Filter out portals that lead to hideout or town (exit portals)
+                // Find nearest portal when in hideout
+                // SimpleMapBot has safety checks to detect wrong portal entry
                 return LokiPoe.ObjectManager.Objects
                     .OfType<Portal>()
                     .Where(p => p != null &&
                                p.IsValid &&
-                               p.IsTargetable &&
-                               p.LeadsTo != null &&
-                               !p.LeadsTo.IsHideoutArea &&
-                               !p.LeadsTo.IsTown)
+                               p.IsTargetable)
                     .OrderBy(p => p.Distance)
                     .FirstOrDefault();
             }

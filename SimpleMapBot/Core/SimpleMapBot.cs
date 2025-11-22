@@ -1158,18 +1158,15 @@ namespace SimpleMapBot.Core
 
                 for (int i = 0; i < 30; i++)
                 {
-                    // Find portal that leads TO hideout/town (exit portal)
-                    // Filter out portals that lead back to the map
+                    // Find nearest portal (should be the one we just created)
                     var portal = LokiPoe.ObjectManager.GetObjectsByType<Portal>()
-                        .Where(p => p.Distance < 20 &&
-                                   p.LeadsTo != null &&
-                                   (p.LeadsTo.IsHideoutArea || p.LeadsTo.IsTown))
+                        .Where(p => p.Distance < 20 && p.IsTargetable)
+                        .OrderBy(p => p.Distance)
                         .FirstOrDefault();
 
                     if (portal != null)
                     {
-                        Log.InfoFormat("[SimpleMapBot] Found exit portal leading to: {0}",
-                            portal.LeadsTo?.Name ?? "Unknown");
+                        Log.InfoFormat("[SimpleMapBot] Found portal at distance {0:F1}m", portal.Distance);
                         if (await Coroutines.InteractWith(portal))
                         {
                             await Coroutine.Sleep(2000);
@@ -1179,7 +1176,7 @@ namespace SimpleMapBot.Core
                     await Coroutine.Sleep(100);
                 }
 
-                Log.Warn("[SimpleMapBot] Failed to find/enter exit portal after 3 seconds");
+                Log.Warn("[SimpleMapBot] Failed to find/enter portal after 3 seconds");
             }
         }
         #endregion
@@ -1187,6 +1184,7 @@ namespace SimpleMapBot.Core
         private enum MapBotState
         {
             Idle,
+            InHideout,
             NeedMap,
             HasMap,
             MapInDevice,
