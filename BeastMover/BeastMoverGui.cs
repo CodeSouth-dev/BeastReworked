@@ -58,7 +58,7 @@ namespace BeastMover
                 "Minimum distance to move to not be stuck",
                 1, 20, 0.5,
                 () => settings.StuckDistance,
-                v => settings.StuckDistance = v
+                v => settings.StuckDistance = (float)v
             ));
 
             // Performance & Debug Section
