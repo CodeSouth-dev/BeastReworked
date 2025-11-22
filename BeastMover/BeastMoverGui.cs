@@ -28,12 +28,29 @@ namespace BeastMover
 
             // Movement Settings Section
             mainPanel.Children.Add(CreateSectionHeader("Movement Settings"));
+
+            mainPanel.Children.Add(CreateNumericSetting(
+                "Move Range:",
+                "Maximum range for basic movement clicks",
+                10, 60, 1,
+                () => settings.MoveRange,
+                v => settings.MoveRange = (int)v
+            ));
+
             mainPanel.Children.Add(CreateNumericSetting(
                 "Single Use Distance:",
-                "Maximum distance for single-use movement skills",
+                "Minimum distance to trigger movement skills",
                 5, 45, 1,
                 () => settings.SingleUseDistance,
                 v => settings.SingleUseDistance = (int)v
+            ));
+
+            mainPanel.Children.Add(CreateNumericSetting(
+                "Move Min Mana:",
+                "Minimum mana required to use movement skills",
+                0, 100, 5,
+                () => settings.MoveMinMana,
+                v => settings.MoveMinMana = (int)v
             ));
 
             mainPanel.Children.Add(CreateCheckBoxSetting(
@@ -41,6 +58,20 @@ namespace BeastMover
                 "Allow using movement skills through portals",
                 () => settings.AllowPortalMovement,
                 v => settings.AllowPortalMovement = v
+            ));
+
+            mainPanel.Children.Add(CreateCheckBoxSetting(
+                "Ignore Mobs",
+                "Ignore mobs when calculating movement path",
+                () => settings.IgnoreMobs,
+                v => settings.IgnoreMobs = v
+            ));
+
+            mainPanel.Children.Add(CreateCheckBoxSetting(
+                "Use Blood Magic",
+                "Use life instead of mana for movement skills",
+                () => settings.UseBloodMagic,
+                v => settings.UseBloodMagic = v
             ));
 
             // Stuck Detection Section
@@ -92,9 +123,11 @@ namespace BeastMover
             var infoText = new TextBlock
             {
                 Text = "ℹ Recommended Settings:\n" +
-                       "• Single Use Distance: 25-35 for smooth movement\n" +
-                       "• Stuck Threshold: 3-5 for balanced stuck detection\n" +
-                       "• Path Refresh: 500-1000ms for best performance",
+                       "• Move Range: 30-35 for normal movement\n" +
+                       "• Single Use Distance: 25-35 to trigger skills\n" +
+                       "• Move Min Mana: 20-40 to preserve mana\n" +
+                       "• Stuck Threshold: 3-5 for balanced detection\n" +
+                       "• Path Refresh: 500-1000ms for performance",
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = Brushes.White
             };
