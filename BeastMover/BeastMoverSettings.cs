@@ -20,13 +20,13 @@ namespace BeastMover
         {
         }
 
-        private int _pathRefreshRate = 1000;
+        private int _pathRefreshRate = 2500;
         private bool _debugLogging = false; // Changed to false - less spam
         private int _stuckThreshold = 3;
         private float _stuckDistance = 5f;
-        private int _singleUseDistance = 30;
+        private int _singleUseDistance = 20;
 
-        [DefaultValue(1000)]
+        [DefaultValue(2500)]
         [Description("How often to refresh paths (in milliseconds). Lower = more responsive but more CPU.")]
         public int PathRefreshRate
         {
@@ -86,7 +86,7 @@ namespace BeastMover
             }
         }
 
-                    [DefaultValue(30)]
+                    [DefaultValue(20)]
                     [Description("Distance threshold for single click vs hold movement.")]
                     public int SingleUseDistance
                     {
