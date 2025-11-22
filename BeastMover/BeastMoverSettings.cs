@@ -116,6 +116,70 @@ namespace BeastMover
                             }
                         }
                     }
+
+                    private int _moveRange = 33;
+                    [DefaultValue(33)]
+                    [Description("Maximum range for basic movement clicks.")]
+                    public int MoveRange
+                    {
+                        get { return _moveRange; }
+                        set
+                        {
+                            if (value != _moveRange)
+                            {
+                                _moveRange = value;
+                                NotifyPropertyChanged(() => MoveRange);
+                            }
+                        }
+                    }
+
+                    private int _moveMinMana = 20;
+                    [DefaultValue(20)]
+                    [Description("Minimum mana required to use movement skills.")]
+                    public int MoveMinMana
+                    {
+                        get { return _moveMinMana; }
+                        set
+                        {
+                            if (value != _moveMinMana)
+                            {
+                                _moveMinMana = value;
+                                NotifyPropertyChanged(() => MoveMinMana);
+                            }
+                        }
+                    }
+
+                    private bool _ignoreMobs = false;
+                    [DefaultValue(false)]
+                    [Description("Ignore mobs when calculating movement path.")]
+                    public bool IgnoreMobs
+                    {
+                        get { return _ignoreMobs; }
+                        set
+                        {
+                            if (value != _ignoreMobs)
+                            {
+                                _ignoreMobs = value;
+                                NotifyPropertyChanged(() => IgnoreMobs);
+                            }
+                        }
+                    }
+
+                    private bool _useBloodMagic = false;
+                    [DefaultValue(false)]
+                    [Description("Use blood magic for movement skills (life instead of mana).")]
+                    public bool UseBloodMagic
+                    {
+                        get { return _useBloodMagic; }
+                        set
+                        {
+                            if (value != _useBloodMagic)
+                            {
+                                _useBloodMagic = value;
+                                NotifyPropertyChanged(() => UseBloodMagic);
+                            }
+                        }
+                    }
     }
 }
 
