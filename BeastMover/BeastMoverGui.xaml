@@ -1,71 +1,125 @@
 <UserControl x:Class="BeastMover.BeastMoverGui"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mahapps="http://metro.mahapps.com/winfx/xaml/controls"
              xmlns:local="clr-namespace:BeastMover"
-             mc:Ignorable="d" 
-             d:DesignHeight="400" d:DesignWidth="450">
-    <Grid x:Name="Root" DataContext="{x:Static local:BeastMoverSettings.Instance}">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="10">
-                <TextBlock Text="BeastMover - Simple Reliable Movement" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
-                <TextBlock Text="No movement skills required - uses default walking" FontStyle="Italic" Margin="0,0,0,20"/>
-                
-                <GroupBox Header="Path Generation" Margin="0,0,0,10">
-                    <StackPanel Margin="10">
-                        <DockPanel Margin="0,0,0,10">
-                            <Label Content="Path Refresh Rate (ms):" Width="180"/>
-                            <TextBox Text="{Binding PathRefreshRate, UpdateSourceTrigger=PropertyChanged}" Width="80" HorizontalAlignment="Left"/>
-                        </DockPanel>
-                        <TextBlock Text="How often to recalculate paths (1000 = 1 second)" 
-                                   FontSize="10" Foreground="Gray" TextWrapping="Wrap"/>
-                    </StackPanel>
+             mc:Ignorable="d"
+             d:DesignHeight="Auto"
+             d:DesignWidth="Auto">
+    <Grid x:Name="Root" Width="Auto" Height="Auto" DataContext="{x:Static local:BeastMoverSettings.Instance}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Movement Settings -->
+                <GroupBox Header="Movement Settings" BorderThickness="2" Margin="5">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Label Grid.Row="0" Grid.Column="0" Content="Single Use Distance:" Margin="5"
+                               ToolTipService.ToolTip="Distance threshold for single click vs hold movement (5-45). When close to target, uses single click instead of holding movement button."/>
+                        <mahapps:NumericUpDown Grid.Row="0" Grid.Column="1" Margin="5"
+                                             Value="{Binding Path=SingleUseDistance, Mode=TwoWay}"
+                                             HorizontalAlignment="Left" Width="100"
+                                             Maximum="45" Minimum="5"/>
+
+                        <Label Grid.Row="1" Grid.Column="0" Content="Allow Portal Movement:" Margin="5"
+                               ToolTipService.ToolTip="Allow movement toward portals. Enable only when bot needs to exit maps via portal."/>
+                        <CheckBox Grid.Row="1" Grid.Column="1" Margin="5,10,0,0"
+                                IsChecked="{Binding Path=AllowPortalMovement, Mode=TwoWay}"/>
+                    </Grid>
                 </GroupBox>
 
-                <GroupBox Header="Stuck Detection" Margin="0,0,0,10">
-                    <StackPanel Margin="10">
-                        <DockPanel Margin="0,0,0,10">
-                            <Label Content="Stuck Threshold:" Width="180"/>
-                            <TextBox Text="{Binding StuckThreshold, UpdateSourceTrigger=PropertyChanged}" Width="80" HorizontalAlignment="Left"/>
-                        </DockPanel>
-                        <TextBlock Text="Number of stuck checks before regenerating path" 
-                                   FontSize="10" Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,10"/>
-                        
-                        <DockPanel Margin="0,0,0,10">
-                            <Label Content="Stuck Distance (meters):" Width="180"/>
-                            <TextBox Text="{Binding StuckDistance, UpdateSourceTrigger=PropertyChanged}" Width="80" HorizontalAlignment="Left"/>
-                        </DockPanel>
-                        <TextBlock Text="Minimum distance to move to not be considered stuck" 
-                                   FontSize="10" Foreground="Gray" TextWrapping="Wrap"/>
-                    </StackPanel>
+                <!-- Stuck Detection Settings -->
+                <GroupBox Header="Stuck Detection" BorderThickness="2" Margin="5">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Label Grid.Row="0" Grid.Column="0" Content="Stuck Threshold:" Margin="5"
+                               ToolTipService.ToolTip="Number of stuck checks before regenerating path (1-10). Lower = more aggressive recovery."/>
+                        <mahapps:NumericUpDown Grid.Row="0" Grid.Column="1" Margin="5"
+                                             Value="{Binding Path=StuckThreshold, Mode=TwoWay}"
+                                             HorizontalAlignment="Left" Width="100"
+                                             Maximum="10" Minimum="1"/>
+
+                        <Label Grid.Row="1" Grid.Column="0" Content="Stuck Distance:" Margin="5"
+                               ToolTipService.ToolTip="Distance (in meters) to consider as 'not moving' for stuck detection (1-20)."/>
+                        <mahapps:NumericUpDown Grid.Row="1" Grid.Column="1" Margin="5"
+                                             Value="{Binding Path=StuckDistance, Mode=TwoWay}"
+                                             HorizontalAlignment="Left" Width="100"
+                                             Maximum="20" Minimum="1" Interval="0.5"/>
+                    </Grid>
                 </GroupBox>
 
-                <GroupBox Header="Logging" Margin="0,0,0,10">
-                    <StackPanel Margin="10">
-                        <CheckBox Content="Enable Debug Logging" IsChecked="{Binding DebugLogging}" Margin="0,5,0,5"/>
-                        <TextBlock Text="Shows detailed movement and pathfinding logs" 
-                                   FontSize="10" Foreground="Gray" TextWrapping="Wrap" Margin="20,0,0,0"/>
-                    </StackPanel>
+                <!-- Performance Settings -->
+                <GroupBox Header="Performance &amp; Debug" BorderThickness="2" Margin="5">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Label Grid.Row="0" Grid.Column="0" Content="Path Refresh Rate (ms):" Margin="5"
+                               ToolTipService.ToolTip="How often to refresh paths in milliseconds (100-5000). Lower = more responsive but more CPU usage."/>
+                        <mahapps:NumericUpDown Grid.Row="0" Grid.Column="1" Margin="5"
+                                             Value="{Binding Path=PathRefreshRate, Mode=TwoWay}"
+                                             HorizontalAlignment="Left" Width="100"
+                                             Maximum="5000" Minimum="100" Interval="100"/>
+
+                        <Label Grid.Row="1" Grid.Column="0" Content="Debug Logging:" Margin="5"
+                               ToolTipService.ToolTip="Enable detailed logging for debugging movement issues. WARNING: Creates lots of log spam!"/>
+                        <CheckBox Grid.Row="1" Grid.Column="1" Margin="5,10,0,0"
+                                IsChecked="{Binding Path=DebugLogging, Mode=TwoWay}"/>
+                    </Grid>
                 </GroupBox>
 
-                <GroupBox Header="Requirements" Margin="0,0,0,10">
-                    <StackPanel Margin="10">
-                        <TextBlock FontWeight="Bold" Margin="0,0,0,5">⚠️ Important Setup:</TextBlock>
-                        <TextBlock TextWrapping="Wrap" Margin="0,2">• Assign default Move skill to Q, W, E, R, or T in-game</TextBlock>
-                        <TextBlock TextWrapping="Wrap" Margin="0,2">• Do NOT use mouse buttons for movement</TextBlock>
-                        <TextBlock TextWrapping="Wrap" Margin="0,2">• BeastMover uses basic walking (no Flame Dash/etc)</TextBlock>
-                    </StackPanel>
+                <!-- Info Panel -->
+                <GroupBox Header="Information" BorderThickness="2" Margin="5">
+                    <TextBlock Margin="10" TextWrapping="Wrap">
+                        <Run Text="BeastMover v1.5.0" FontWeight="Bold"/>
+                        <LineBreak/>
+                        <LineBreak/>
+                        <Run Text="Features:"/>
+                        <LineBreak/>
+                        <Run Text="• Optimized pathfinding with ExilePather integration"/>
+                        <LineBreak/>
+                        <Run Text="• Movement skill support (Leap Slam, Flame Dash, etc.)"/>
+                        <LineBreak/>
+                        <Run Text="• Stuck detection and automatic recovery"/>
+                        <LineBreak/>
+                        <Run Text="• Portal avoidance (configurable)"/>
+                        <LineBreak/>
+                        <LineBreak/>
+                        <Run Text="Recommended Settings:"/>
+                        <LineBreak/>
+                        <Run Text="• Single Use Distance: 30"/>
+                        <LineBreak/>
+                        <Run Text="• Stuck Threshold: 3"/>
+                        <LineBreak/>
+                        <Run Text="• Stuck Distance: 5"/>
+                        <LineBreak/>
+                        <Run Text="• Path Refresh Rate: 1000ms"/>
+                    </TextBlock>
                 </GroupBox>
-
-                <Border BorderBrush="LightBlue" BorderThickness="1" Padding="10" Margin="0,10,0,0">
-                    <StackPanel>
-                        <TextBlock Text="💡 Debugging Tips" FontWeight="Bold" Margin="0,0,0,5"/>
-                        <TextBlock TextWrapping="Wrap">Look for [BeastMover] messages in logs to see movement activity</TextBlock>
-                    </StackPanel>
-                </Border>
             </StackPanel>
         </ScrollViewer>
     </Grid>
 </UserControl>
-
