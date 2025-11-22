@@ -2,7 +2,6 @@
   "AssemblyName": "BeastMover",
   "FileList": [
     "BeastMover.cs",
-    "BeastMoverGui.baml",
     "BeastMoverGui.g.cs",
     "BeastMoverGui.xaml",
     "BeastMoverGui.xaml.cs",
