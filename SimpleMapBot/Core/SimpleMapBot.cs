@@ -344,6 +344,22 @@ namespace SimpleMapBot.Core
 
         private async Task HandleMapState()
         {
+            var cwa = LokiPoe.CurrentWorldArea;
+
+            // Safety check: If we're actually in hideout, reset state
+            // This happens if we entered a portal that led back to hideout instead of to map
+            if (cwa != null && cwa.IsHideoutArea)
+            {
+                Log.Warn("[SimpleMapBot] ===== UNEXPECTED: In hideout but state was InMap =====");
+                Log.Info("[SimpleMapBot] Probably entered exit portal instead of entrance portal");
+                Log.Info("[SimpleMapBot] Resetting to hideout state");
+                _currentState = MapBotState.InHideout;
+                _mapTimer.Reset();
+                _mapTimerStarted = false;
+                ResetExplorationState();
+                return;
+            }
+
             // Start map timer on first entry
             if (!_mapTimerStarted)
             {
