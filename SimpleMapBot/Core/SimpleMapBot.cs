@@ -486,17 +486,47 @@ namespace SimpleMapBot.Core
             // Pick new exploration target if needed
             if (_explorationTarget == Vector2i.Zero || myPos.Distance(_explorationTarget) < 20)
             {
-                // Pick random point within 100 units
-                var randomOffset = new Vector2i(
-                    LokiPoe.Random.Next(-100, 100),
-                    LokiPoe.Random.Next(-100, 100)
-                );
-                _explorationTarget = myPos + randomOffset;
+                // Use ExilePather's intelligent exploration target finding
+                var explorationTarget = ExilePather.GetExplorationTarget();
 
-                if (_coroutineTickCount % 5 == 0)
+                if (explorationTarget != Vector2i.Zero && ExilePather.PathExistsBetween(myPos, explorationTarget, true))
                 {
-                    Log.InfoFormat("[SimpleMapBot] New exploration target: {0} (distance: {1:F1})",
-                        _explorationTarget, myPos.Distance(_explorationTarget));
+                    _explorationTarget = explorationTarget;
+                    if (_coroutineTickCount % 5 == 0)
+                    {
+                        Log.InfoFormat("[SimpleMapBot] ExilePather exploration target: {0} (distance: {1:F1})",
+                            _explorationTarget, myPos.Distance(_explorationTarget));
+                    }
+                }
+                else
+                {
+                    // Fallback: Try random walkable points
+                    for (int attempts = 0; attempts < 10; attempts++)
+                    {
+                        var randomOffset = new Vector2i(
+                            LokiPoe.Random.Next(-80, 80),
+                            LokiPoe.Random.Next(-80, 80)
+                        );
+                        var candidate = myPos + randomOffset;
+
+                        if (ExilePather.IsWalkable(candidate) && ExilePather.PathExistsBetween(myPos, candidate, true))
+                        {
+                            _explorationTarget = candidate;
+                            if (_coroutineTickCount % 5 == 0)
+                            {
+                                Log.InfoFormat("[SimpleMapBot] Random walkable target: {0} (distance: {1:F1})",
+                                    _explorationTarget, myPos.Distance(_explorationTarget));
+                            }
+                            break;
+                        }
+                    }
+
+                    // Last resort: just move forward a bit
+                    if (_explorationTarget == Vector2i.Zero)
+                    {
+                        _explorationTarget = myPos + new Vector2i(20, 0);
+                        Log.Warn("[SimpleMapBot] Could not find valid exploration target, using fallback forward movement");
+                    }
                 }
             }
 
