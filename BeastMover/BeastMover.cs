@@ -157,7 +157,7 @@ namespace BeastMover
             // - No command yet
             // - Moving to a different position
             // - Path refresh interval elapsed
-            // - Off course from current path
+            // - Off course from current path (no path points nearby)
             // - In town (always regenerate)
             if (_cmd == null ||
                 _cmd.Path == null ||
@@ -165,7 +165,7 @@ namespace BeastMover
                 LokiPoe.CurrentWorldArea.IsTown ||
                 (_sw.IsRunning && _sw.ElapsedMilliseconds > BeastMoverSettings.Instance.PathRefreshRate) ||
                 _cmd.Path.Count <= 2 ||
-                _cmd.Path.All(p => myPosition.Distance(p) > 10))
+                !_cmd.Path.Any(p => myPosition.Distance(p) <= 15))
             {
                 // Generate new path using ExilePather
                 _cmd = new PathfindingCommand(myPosition, position, 3, false);
@@ -184,9 +184,9 @@ namespace BeastMover
             }
 
             var cwa = LokiPoe.CurrentWorldArea;
-            var specialMoveRange = 20;
+            var specialMoveRange = 10;
             if (cwa.IsTown)
-                specialMoveRange = 19;
+                specialMoveRange = 9;
 
             // Remove points we've already passed
             while (_cmd.Path.Count > 1)
@@ -205,8 +205,8 @@ namespace BeastMover
             // Get the next point to move to
             var point = _cmd.Path[0];
 
-            // Add slight randomization to prevent getting stuck on walls
-            point += new Vector2i(LokiPoe.Random.Next(-2, 3), LokiPoe.Random.Next(-2, 3));
+            // Add minimal randomization to prevent getting stuck on walls
+            point += new Vector2i(LokiPoe.Random.Next(-1, 2), LokiPoe.Random.Next(-1, 2));
 
             // Validate the point is walkable
             if (!ExilePather.IsWalkable(point))
@@ -572,21 +572,31 @@ namespace BeastMover
 
             _stuckCheckStopwatch.Restart();
 
+            // Clear blacklist if it gets too large (prevents avoiding good paths)
+            if (BlacklistedLocations.Count > 50)
+            {
+                if (BeastMoverSettings.Instance.DebugLogging)
+                {
+                    Log.InfoFormat("[BeastMover] Clearing blacklist ({0} locations)", BlacklistedLocations.Count);
+                }
+                BlacklistedLocations.Clear();
+            }
+
             // If we haven't moved much, increment stuck counter
             var distanceMoved = _lastPosition.Distance(currentPosition);
             if (distanceMoved < BeastMoverSettings.Instance.StuckDistance && _lastPosition != Vector2i.Zero)
             {
                 _stuckCount++;
-                
+
                 if (BeastMoverSettings.Instance.DebugLogging)
                 {
-                    Log.WarnFormat("[BeastMover] Stuck check #{0}: Only moved {1:F1}m in 2 seconds", 
+                    Log.WarnFormat("[BeastMover] Stuck check #{0}: Only moved {1:F1}m in 2 seconds",
                         _stuckCount, distanceMoved);
                 }
-                
+
                 if (_stuckCount > BeastMoverSettings.Instance.StuckThreshold)
                 {
-                    Log.WarnFormat("[BeastMover] Player appears stuck at {0}, clearing path and regenerating", 
+                    Log.WarnFormat("[BeastMover] Player appears stuck at {0}, clearing path and regenerating",
                         currentPosition);
                     _cmd = null; // Force new path generation
                     _stuckCount = 0;
