@@ -101,9 +101,9 @@ namespace BeastMover
                         }
                     }
 
-                    private bool _allowPortalMovement = false;
-                    [DefaultValue(false)]
-                    [Description("Allow movement toward portals. Set to true only when you want the bot to exit maps.")]
+                    private bool _allowPortalMovement = true;
+                    [DefaultValue(true)]
+                    [Description("Allow movement toward portals. Leave ON for map running (SimpleMapBot handles portal logic).")]
                     public bool AllowPortalMovement
                     {
                         get { return _allowPortalMovement; }

@@ -69,7 +69,7 @@ namespace BeastMover
 
             mainPanel.Children.Add(CreateCheckBoxSetting(
                 "Allow Portal Movement",
-                "Prevents accidentally entering portals when disabled (recommended)",
+                "Leave ON for map running - SimpleMapBot handles when to enter portals",
                 () => settings.AllowPortalMovement,
                 v => settings.AllowPortalMovement = v
             ));
@@ -218,7 +218,7 @@ namespace BeastMover
                        "• Set Min/Max distance ranges for each skill\n" +
                        "• Lower Min = skill triggers sooner (more often)\n" +
                        "• Higher Max = skill can travel further\n" +
-                       "• Keep 'Allow Portal Movement' OFF to avoid leaving maps\n\n" +
+                       "• Leave 'Allow Portal Movement' ON for map running\n\n" +
                        "Recommended:\n" +
                        "• Move Range: 30-35 | Single Use: 25-35\n" +
                        "• Min Mana: 20-40 | Stuck Threshold: 3-5",
