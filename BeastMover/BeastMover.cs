@@ -153,6 +153,8 @@ namespace BeastMover
             // Check if we're stuck
             CheckStuck(myPosition);
 
+            var cwa = LokiPoe.CurrentWorldArea;
+
             // Need to generate a new path if:
             // - No command yet
             // - Moving to a different position
@@ -162,13 +164,17 @@ namespace BeastMover
             if (_cmd == null ||
                 _cmd.Path == null ||
                 _cmd.EndPoint != position ||
-                LokiPoe.CurrentWorldArea.IsTown ||
+                cwa.IsTown ||
                 (_sw.IsRunning && _sw.ElapsedMilliseconds > BeastMoverSettings.Instance.PathRefreshRate) ||
                 _cmd.Path.Count <= 2 ||
                 !_cmd.Path.Any(p => myPosition.Distance(p) <= 15))
             {
+                // Use more precise waypoint distance in hideout for accurate navigation to map device
+                // In maps, use larger distance for better performance
+                var waypointDistance = cwa.IsHideoutArea ? 1 : 3;
+
                 // Generate new path using ExilePather
-                _cmd = new PathfindingCommand(myPosition, position, 3, false);
+                _cmd = new PathfindingCommand(myPosition, position, waypointDistance, false);
 
                 if (!ExilePather.FindPath(ref _cmd))
                 {
@@ -183,7 +189,6 @@ namespace BeastMover
                 _sw.Restart();
             }
 
-            var cwa = LokiPoe.CurrentWorldArea;
             var specialMoveRange = 10;
             if (cwa.IsTown)
                 specialMoveRange = 9;
