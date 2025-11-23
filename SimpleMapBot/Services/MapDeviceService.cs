@@ -53,7 +53,7 @@ namespace SimpleMapBot.Services
                 return false;
             }
             // Move closer if needed
-            if (device.Distance > 30)
+            if (device.Distance > 15)
             {
                 PlayerMoverManager.Current.MoveTowards(device.Position);
                 await Coroutine.Sleep(100);
