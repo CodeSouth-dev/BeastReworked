@@ -132,12 +132,12 @@ namespace SimpleMapBot.Services
 
             LokiPoe.ProcessHookManager.ClearAllKeyStates();
 
-            // Use FastMove directly on the device control to place item from inventory
-            // This should work similar to how stashing works
-            Log.InfoFormat("[MapDeviceService] Calling FastMove on device for item: {0} (LocalId: {1})",
+            // Use FastMove on the PLAYER INVENTORY control to move item TO the device
+            // Same pattern as stashing: call FastMove on source (inventory), not destination (device)
+            Log.InfoFormat("[MapDeviceService] Calling FastMove on inventory for item: {0} (LocalId: {1})",
                 item.Name, item.LocalId);
-            var result = deviceControl.FastMove(item.LocalId);
-            Log.InfoFormat("[MapDeviceService] Device FastMove result: {0}", result);
+            var result = LokiPoe.InGameState.InventoryUi.InventoryControl_Main.FastMove(item.LocalId);
+            Log.InfoFormat("[MapDeviceService] Inventory FastMove result: {0}", result);
 
             if (result != FastMoveResult.None)
             {
