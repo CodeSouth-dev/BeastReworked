@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -45,6 +46,7 @@ namespace SimpleMapBot.Core
         private Vector2i _explorationTarget = Vector2i.Zero;
         private Vector2i _lastPosition = Vector2i.Zero;
         private int _stuckCounter = 0;
+        private readonly HashSet<Vector2i> _exploredPositions = new HashSet<Vector2i>();
 
         #region IAuthored
         public string Name => "SimpleMapBot";
@@ -467,6 +469,9 @@ namespace SimpleMapBot.Core
             // Then explore the map using BeastMover
             var myPos = LokiPoe.MyPosition;
 
+            // Mark current position as explored
+            _exploredPositions.Add(myPos);
+
             // Check if stuck
             if (_lastPosition != Vector2i.Zero && myPos.Distance(_lastPosition) < 5)
             {
@@ -487,32 +492,46 @@ namespace SimpleMapBot.Core
             // Pick new exploration target if needed
             if (_explorationTarget == Vector2i.Zero || myPos.Distance(_explorationTarget) < 20)
             {
-                // Try random walkable points for exploration
-                for (int attempts = 0; attempts < 10; attempts++)
-                {
-                    var randomOffset = new Vector2i(
-                        LokiPoe.Random.Next(-80, 80),
-                        LokiPoe.Random.Next(-80, 80)
-                    );
-                    var candidate = myPos + randomOffset;
+                // First priority: Find unexplored areas using spiral search
+                _explorationTarget = FindUnexploredPosition(myPos, 80);
 
-                    if (ExilePather.IsWalkable(candidate) && ExilePather.PathExistsBetween(myPos, candidate, true))
+                if (_explorationTarget != Vector2i.Zero)
+                {
+                    if (_coroutineTickCount % 5 == 0)
                     {
-                        _explorationTarget = candidate;
-                        if (_coroutineTickCount % 5 == 0)
-                        {
-                            Log.InfoFormat("[SimpleMapBot] Random walkable target: {0} (distance: {1:F1})",
-                                _explorationTarget, myPos.Distance(_explorationTarget));
-                        }
-                        break;
+                        Log.InfoFormat("[SimpleMapBot] Unexplored target found: {0} (distance: {1:F1})",
+                            _explorationTarget, myPos.Distance(_explorationTarget));
                     }
                 }
-
-                // Last resort: just move forward a bit
-                if (_explorationTarget == Vector2i.Zero)
+                else
                 {
-                    _explorationTarget = myPos + new Vector2i(20, 0);
-                    Log.Warn("[SimpleMapBot] Could not find valid exploration target, using fallback forward movement");
+                    // Fallback: Try random walkable points
+                    for (int attempts = 0; attempts < 10; attempts++)
+                    {
+                        var randomOffset = new Vector2i(
+                            LokiPoe.Random.Next(-80, 80),
+                            LokiPoe.Random.Next(-80, 80)
+                        );
+                        var candidate = myPos + randomOffset;
+
+                        if (ExilePather.IsWalkable(candidate) && ExilePather.PathExistsBetween(myPos, candidate, true))
+                        {
+                            _explorationTarget = candidate;
+                            if (_coroutineTickCount % 5 == 0)
+                            {
+                                Log.InfoFormat("[SimpleMapBot] Random walkable target: {0} (distance: {1:F1})",
+                                    _explorationTarget, myPos.Distance(_explorationTarget));
+                            }
+                            break;
+                        }
+                    }
+
+                    // Last resort: just move forward a bit
+                    if (_explorationTarget == Vector2i.Zero)
+                    {
+                        _explorationTarget = myPos + new Vector2i(20, 0);
+                        Log.Warn("[SimpleMapBot] Could not find valid exploration target, using fallback forward movement");
+                    }
                 }
             }
 
@@ -1074,6 +1093,33 @@ namespace SimpleMapBot.Core
             _explorationTarget = Vector2i.Zero;
             _lastPosition = Vector2i.Zero;
             _stuckCounter = 0;
+            _exploredPositions.Clear();
+        }
+
+        /// <summary>
+        /// Find unexplored position using spiral search pattern
+        /// </summary>
+        private Vector2i FindUnexploredPosition(Vector2i fromPos, int maxDistance)
+        {
+            // Spiral search pattern - check increasing distances
+            for (int dist = 20; dist <= maxDistance; dist += 10)
+            {
+                // Check 8 directions at this distance
+                for (int angle = 0; angle < 360; angle += 45)
+                {
+                    int x = (int)(dist * Math.Cos(angle * Math.PI / 180));
+                    int y = (int)(dist * Math.Sin(angle * Math.PI / 180));
+                    var testPos = fromPos + new Vector2i(x, y);
+
+                    // Check if position is walkable and not already explored
+                    if (ExilePather.IsWalkable(testPos) && !_exploredPositions.Contains(testPos))
+                    {
+                        return testPos;
+                    }
+                }
+            }
+
+            return Vector2i.Zero;
         }
 
         private Item GetEnabledMapFromInventory()
