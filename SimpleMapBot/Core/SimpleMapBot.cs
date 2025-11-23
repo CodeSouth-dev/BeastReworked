@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using DreamPoeBot.BotFramework;
 using DreamPoeBot.Common;
 using DreamPoeBot.Loki.Bot;
+using DreamPoeBot.Loki.Bot.Pathfinding;
 using DreamPoeBot.Loki.Common;
 using DreamPoeBot.Loki.Coroutine;
 using DreamPoeBot.Loki.Game;
